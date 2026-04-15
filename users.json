@@ -1,0 +1,9 @@
+{
+  "users": [
+    {
+      "username": "jones",
+      "password_hash": "scrypt:32768:8:1$OLjIz88aMnHlIkdd$3bd5e83f8bbfb7a12e8669b04722c411d6d6ea5959e69a467d8348501741f0adb4f0e9db26c78b804dcc238519013724f221f0cd3b8ae0dd54093b05ca216405",
+      "is_admin": true
+    }
+  ]
+}
