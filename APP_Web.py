@@ -1,4 +1,3 @@
-
 # quiz_web_server.py
 #
 # FULL version (restores all quiz functionality) with:
@@ -28,30 +27,21 @@ from functools import wraps
 
 from flask import Flask, request, redirect, url_for, render_template_string, session, abort, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
-from pymongo import MongoClient
 
 BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = Path(os.environ.get("QUIZ_DATA_DIR", str(BASE_DIR))).resolve()
 STATIC_IMG_DIR = BASE_DIR / "static" / "questions"
-IMG_DIR = Path(os.environ.get("QUIZ_IMG_DIR", str(BASE_DIR / "question_images"))).resolve()
+IMG_DIR = Path(os.environ.get("QUIZ_IMG_DIR", str(DATA_DIR / "question_images"))).resolve()
 QUESTIONS_FILE = BASE_DIR / "questions.json"
+HISTORY_FILE = DATA_DIR / "quiz_history.json"
+USERS_FILE = DATA_DIR / "users.json"
+PROGRESS_FILE = DATA_DIR / "quiz_progress.json"
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-this-secret-key-12345")
 
-# ---------------------- MongoDB Setup ----------------------
-MONGO_URI = os.environ.get("MONGO_URI", "")
-_mongo_client = None
-_mongo_db = None
 
-def get_db():
-    global _mongo_client, _mongo_db
-    if _mongo_db is None:
-        _mongo_client = MongoClient(MONGO_URI)
-        _mongo_db = _mongo_client["quiz_app"]
-    return _mongo_db
-
-
-# ---------------------- JSON file helpers (kept for questions.json only) ----------------------
+# ---------------------- JSON file helpers ----------------------
 def _read_json(path: Path, default):
     if not path.exists():
         return default
@@ -62,11 +52,13 @@ def _read_json(path: Path, default):
 
 
 def _write_json(path: Path, data):
+    """Write JSON to disk. Returns True on success, False on failure."""
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         return True
     except Exception as e:
+        # Don\'t crash the whole app if the filesystem is read-only (common on some hosts)
         print(f"[WARN] Failed to write {path}: {e}")
         return False
 
@@ -130,25 +122,18 @@ def save_questions_raw(data):
 
 # ---------------------- History ----------------------
 def load_history():
-    db = get_db()
-    return list(db.history.find({}, {"_id": 0}))
+    return _read_json(HISTORY_FILE, [])
 
 
 def save_history(history):
-    # history is a list; we store the latest attempt as a new document
-    pass  # we use append_history instead
-
-
-def append_history(attempt: dict):
-    db = get_db()
-    db.history.insert_one(attempt)
+    _write_json(HISTORY_FILE, history)
 
 
 def last_three_for_question(q_number: int):
     """Return up to last 3 statuses ["R","W",...] for this question number."""
-    db = get_db()
+    history = load_history()
     out = []
-    for attempt in db.history.find({}, {"_id": 0}).sort("_id", -1):
+    for attempt in reversed(history):
         qitems = attempt.get("questions") or []
         for qi in qitems:
             if qi.get("q") == q_number:
@@ -160,45 +145,56 @@ def last_three_for_question(q_number: int):
 
 
 # ---------------------- Progress (Resume) ----------------------
+def load_progress():
+    return _read_json(PROGRESS_FILE, {})
+
+
+def save_progress(progress):
+    _write_json(PROGRESS_FILE, progress)
+
+
 def get_user_progress(username: str):
-    db = get_db()
-    doc = db.progress.find_one({"username": username}, {"_id": 0})
-    if doc:
-        return doc.get("data")
-    return None
+    data = load_progress()
+    return data.get(username) or None
 
 
 def set_user_progress(username: str, payload: dict):
-    db = get_db()
-    db.progress.update_one(
-        {"username": username},
-        {"$set": {"username": username, "data": payload}},
-        upsert=True
-    )
+    data = load_progress()
+    data[username] = payload
+    save_progress(data)
 
 
 def clear_user_progress(username: str):
-    db = get_db()
-    db.progress.delete_one({"username": username})
+    data = load_progress()
+    if username in data:
+        del data[username]
+        save_progress(data)
 
 
 
 # ---------------------- Users / Auth ----------------------
 def ensure_default_admin():
-    """If no users exist in DB, create a default admin (admin/admin123)."""
-    db = get_db()
-    if db.users.count_documents({}) == 0:
-        db.users.insert_one({
-            "username": "admin",
-            "password_hash": generate_password_hash("admin123"),
-            "is_admin": True,
-        })
+    """If users.json doesn't exist, create it with a default admin (admin/admin123)."""
+    if USERS_FILE.exists():
+        return
+    _write_json(
+        USERS_FILE,
+        {
+            "users": [
+                {
+                    "username": "admin",
+                    "password_hash": generate_password_hash("admin123"),
+                    "is_admin": True,
+                }
+            ]
+        },
+    )
 
 
 def load_users():
     ensure_default_admin()
-    db = get_db()
-    users = list(db.users.find({}, {"_id": 0}))
+    data = _read_json(USERS_FILE, {"users": []})
+    users = data.get("users") or []
     cleaned = []
     for u in users:
         username = (u.get("username") or "").strip()
@@ -210,16 +206,14 @@ def load_users():
 
 
 def save_users(users):
-    db = get_db()
-    db.users.delete_many({})
-    if users:
-        db.users.insert_many([dict(u) for u in users])
+    _write_json(USERS_FILE, {"users": users})
 
 
 def get_user(username: str):
-    db = get_db()
-    u = db.users.find_one({"username": {"$regex": f"^{username}$", "$options": "i"}}, {"_id": 0})
-    return u
+    for u in load_users():
+        if u["username"].lower() == username.lower():
+            return u
+    return None
 
 
 def login_required(fn):
@@ -1222,8 +1216,10 @@ def quiz_result():
     percent = int(round((num_correct / num_questions) * 100)) if num_questions else 0
     passed = percent >= pass_percent
 
-    try:
-        append_history({
+    history = load_history()
+    history.append(
+        {
+
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "user": session.get("user"),
             "num_questions": num_questions,
@@ -1233,7 +1229,10 @@ def quiz_result():
             "questions": per_question_results,
             "q_min": min([x["q"] for x in per_question_results]) if per_question_results else None,
             "q_max": max([x["q"] for x in per_question_results]) if per_question_results else None,
-        })
+        }
+    )
+    try:
+        save_history(history)
     except Exception as _e:
         print(f"[WARN] Could not save history: {_e}")
 
@@ -1326,13 +1325,20 @@ def history_page():
     f_range_from = request.args.get("f_range_from", "")
     f_range_to   = request.args.get("f_range_to", "")
 
-    # Collect unique users for dropdown
+    # Non-admins can only see their own history
+    current_user = session.get("user")
+    is_admin = bool(session.get("is_admin"))
+    if not is_admin:
+        history = [h for h in history if (h.get("user") or "").lower() == (current_user or "").lower()]
+
+    # Collect unique users for dropdown (admins only)
     all_users = sorted({(h.get("user") or "") for h in history if (h.get("user") or "")})
 
     # Apply filters
     filtered = list(reversed(history))  # newest first
 
-    if f_user:
+    # Admin-only: filter by user
+    if is_admin and f_user:
         filtered = [h for h in filtered if (h.get("user") or "").lower() == f_user.lower()]
 
     if f_result == "passed":
@@ -1380,6 +1386,7 @@ def history_page():
         <!-- Filter bar -->
         <form method="get" style="background:#f8f8f8;border:1px solid #ddd;padding:12px 16px;border-radius:8px;margin-bottom:16px;">
           <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+            {% if is_admin %}
             <div>
               <label class="small">User</label><br>
               <select name="f_user" style="padding:5px 8px;">
@@ -1389,6 +1396,7 @@ def history_page():
                 {% endfor %}
               </select>
             </div>
+            {% endif %}
             <div>
               <label class="small">Result</label><br>
               <select name="f_result" style="padding:5px 8px;">
@@ -1479,6 +1487,7 @@ def history_page():
         f_score_max=f_score_max,
         f_range_from=f_range_from,
         f_range_to=f_range_to,
+        is_admin=is_admin,
     )
     return page_layout("Quiz - History", body)
 
