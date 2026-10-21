@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field %}
+{% block title %}AI workout builder{% endblock %}
+{% block content %}
+<h1>✨ AI workout builder</h1>
+<section class="card">
+  <p><strong>Your gym:</strong> {{ gym.gym_size|replace("_", " ") }} · {{ gym.equipment|map("replace", "_", " ")|join(", ") or "bodyweight only" }}</p>
+  <p><strong>Goal:</strong> {{ gym.goal }} · {{ gym.experience }}</p>
+  <a class="small" href="{{ url_for('workouts.gym_profile') }}">Change gym / equipment</a>
+</section>
+{% if not ai_enabled %}
+<div class="flash flash-info">The AI builder needs an ANTHROPIC_API_KEY on the server. You can still add exercises manually.</div>
+{% endif %}
+<form method="post" class="card" novalidate data-busy="Building your workout…">
+  {{ form.hidden_tag() }}
+  {{ field(form.focus) }}
+  <div class="grid-2">
+    {{ field(form.count, attrs={"inputmode": "numeric", "min": 3, "max": 10}) }}
+    {{ field(form.minutes, attrs={"inputmode": "numeric", "min": 10, "max": 120}) }}
+  </div>
+  {{ field(form.extra, attrs={"maxlength": 300, "placeholder": "e.g. go easy on my left shoulder"}) }}
+  <button class="btn btn-ai btn-block" type="submit" {% if not ai_enabled %}disabled{% endif %}>Build my workout</button>
+</form>
+{% endblock %}

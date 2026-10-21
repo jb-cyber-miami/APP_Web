@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field %}
+{% block title %}Sign in{% endblock %}
+{% block body_class %}auth-page{% endblock %}
+{% block content %}
+<section class="card auth-card">
+  <h1 class="logo">FitLog</h1>
+  <p class="muted">Your workouts, calories and progress — in your pocket.</p>
+
+  {% if google_enabled %}
+  <a class="btn btn-google" href="{{ url_for('auth.google_login') }}">
+    <img src="{{ url_for('static', filename='icons/google.svg') }}" alt="" width="18" height="18"> Continue with Google
+  </a>
+  <div class="divider"><span>or</span></div>
+  {% endif %}
+
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+    {{ field(form.username, attrs={"autocomplete": "username", "autocapitalize": "none", "autocorrect": "off", "required": true}) }}
+    {{ field(form.password, attrs={"autocomplete": "current-password", "required": true}) }}
+    <label class="check">{{ form.remember() }} {{ form.remember.label.text }}</label>
+    <button class="btn btn-block" type="submit">Sign in</button>
+  </form>
+  <p class="center">New here? <a href="{{ url_for('auth.register') }}">Create an account</a></p>
+</section>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "_macros.html" import post_button %}
+{% block title %}Share links{% endblock %}
+{% block content %}
+<h1>Active share links</h1>
+<section class="card">
+  {% if not links %}<p class="muted">No active links.</p>{% endif %}
+  <ul class="list">
+    {% for l in links %}
+    <li class="row-between">
+      <span><strong>{{ l.day.strftime('%a, %b %-d') }}</strong><br><span class="small muted">expires {{ l.expires_at|localtime(current_user.timezone, "%b %-d") }}</span></span>
+      {{ post_button(url_for('sharing.revoke', link_id=l.id), "Revoke", "btn btn-danger btn-small") }}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

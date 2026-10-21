@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Your AI workout{% endblock %}
+{% block content %}
+<h1>{{ plan.title or focus }}</h1>
+<p class="muted">Untick anything you don't want, then save to your library. Always warm up and use a weight you can control.</p>
+<form method="post" action="{{ url_for('workouts.exercise_ai_save') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% for ex in plan.exercises %}
+  <section class="card">
+    <label class="check big"><input type="checkbox" name="selected" value="{{ loop.index0 }}" checked> <strong>{{ ex.name }}</strong></label>
+    <p class="small muted">{{ ex.sets }} × {{ ex.reps }} · rest {{ ex.rest_seconds }}s{% if ex.muscle_group %} · {{ ex.muscle_group }}{% endif %}{% if ex.equipment %} · {{ ex.equipment }}{% endif %}</p>
+    <p class="pre">{{ ex.instructions }}</p>
+    {% for f in ["name", "muscle_group", "equipment", "sets", "reps", "rest_seconds", "instructions"] %}
+      <input type="hidden" name="{{ f }}" value="{{ ex[f] }}">
+    {% endfor %}
+  </section>
+  {% endfor %}
+  <div class="sticky-actions">
+    <button class="btn btn-block" type="submit">Save selected to my library</button>
+    <a class="btn btn-secondary btn-block" href="{{ url_for('workouts.exercise_ai') }}">Try again</a>
+  </div>
+</form>
+{% endblock %}

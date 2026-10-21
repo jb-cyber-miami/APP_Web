@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field, post_button %}
+{% block title %}Sync{% endblock %}
+{% block content %}
+<h1>Sync your wearables</h1>
+
+<section class="card">
+  <h2>💍 Oura Ring</h2>
+  {% if not oura_enabled %}
+    <p class="muted">Oura isn't configured on this server yet (OURA_CLIENT_ID / OURA_CLIENT_SECRET). See docs/INTEGRATIONS.md.</p>
+  {% elif oura_integration %}
+    <p>Connected ✅{% if oura_integration.last_synced_at %} · last sync {{ oura_integration.last_synced_at|localtime(current_user.timezone, "%b %-d, %I:%M %p") }}{% endif %}</p>
+    {% if oura_integration.last_error %}<p class="error">{{ oura_integration.last_error }}</p>{% endif %}
+    <div class="row-wrap">
+      {{ post_button(url_for('integrations.oura_sync'), "↻ Sync now") }}
+      {{ post_button(url_for('integrations.oura_disconnect'), "Disconnect", "btn btn-danger", confirm="Disconnect Oura?") }}
+    </div>
+  {% else %}
+    <p class="muted">Pulls your daily active calories and workouts from Oura.</p>
+    <a class="btn" href="{{ url_for('integrations.oura_connect') }}">Connect Oura</a>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>⌚ Apple Health / Apple Watch</h2>
+  <p class="muted">Apple doesn't offer a web API for Health data, so your iPhone sends it to FitLog with a Shortcut. It takes about 3 minutes to set up once.</p>
+
+  {% if new_token %}
+  <div class="flash flash-success">
+    <p><strong>Copy this token now — it won't be shown again.</strong></p>
+    <div class="copy-row">
+      <input id="new-token" value="{{ new_token }}" readonly>
+      <button type="button" class="btn btn-small" data-copy="#new-token">Copy</button>
+    </div>
+  </div>
+  {% endif %}
+
+  <ol class="steps">
+    <li>Create a token below and copy it.</li>
+    <li>In the <strong>Shortcuts</strong> app, build the two shortcuts described in the guide (daily calories and “Workout Calories”).</li>
+    <li>Use these addresses:
+      <ul class="plain small">
+        <li>Daily: <code>{{ api_base }}/api/v1/apple/daily</code></li>
+        <li>Workout: <code>{{ api_base }}/api/v1/apple/workout</code></li>
+      </ul>
+    </li>
+    <li>Add a Personal Automation (e.g. every day at 9 PM, or “When Apple Watch workout ends”) to run them automatically.</li>
+  </ol>
+
+  <form method="post" action="{{ url_for('integrations.token_create') }}" class="row-wrap" novalidate>
+    {{ token_form.hidden_tag() }}
+    {{ token_form.name(maxlength=40) }}
+    <button class="btn" type="submit">Create token</button>
+  </form>
+
+  {% if tokens %}
+  <ul class="list">
+    {% for t in tokens %}
+    <li class="row-between">
+      <span><strong>{{ t.name }}</strong> <code class="small">{{ t.prefix }}…</code><br>
+        <span class="small muted">{% if t.last_used_at %}last used {{ t.last_used_at|localtime(current_user.timezone, "%b %-d, %I:%M %p") }}{% else %}never used{% endif %}</span></span>
+      {{ post_button(url_for('integrations.token_delete', token_id=t.id), "Revoke", "btn btn-danger btn-small", confirm="Revoke this token?") }}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endblock %}

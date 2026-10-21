@@ -1,0 +1,19 @@
+{# expects: s (DaySummary), tz #}
+{% set active_kcal, active_src = s.headline_active %}
+<div class="stats">
+  <div class="stat">
+    <span class="stat-value">{{ s.session_kcal or "—" }}</span>
+    <span class="stat-label">workout kcal</span>
+  </div>
+  <div class="stat">
+    <span class="stat-value">{{ active_kcal if active_kcal is not none else "—" }}</span>
+    <span class="stat-label">active kcal today{% if active_src %} · {{ "Apple" if active_src == "apple" else "Oura" }}{% endif %}</span>
+  </div>
+  <div class="stat">
+    <span class="stat-value">{{ s.exercise_names|length }}</span>
+    <span class="stat-label">exercises</span>
+  </div>
+</div>
+{% if s.daily_active|length > 1 %}
+<p class="hint">Apple Watch: {{ s.daily_active.get('apple') }} kcal · Oura: {{ s.daily_active.get('oura') }} kcal (shown separately, never added together)</p>
+{% endif %}

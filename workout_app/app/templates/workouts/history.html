@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% from "_macros.html" import share_button %}
+{% block title %}History{% endblock %}
+{% block content %}
+<h1>Last 14 days</h1>
+{% for s in days %}
+<section class="card day {{ 'went' if s.went_to_gym else 'skipped' }}">
+  <div class="day-head">
+    <h2>{{ s.day.strftime('%a, %b %-d') }}</h2>
+    <span class="badge {{ 'badge-ok' if s.went_to_gym else 'badge-miss' }}">{{ "✅ Gym" if s.went_to_gym else "❌ No gym" }}</span>
+  </div>
+  {% include "workouts/_day_card.html" %}
+  {% if s.exercise_names %}<p class="small">{{ s.exercise_names|join(", ") }}</p>{% endif %}
+  {% for ws in s.sessions %}
+    <a class="small" href="{{ url_for('workouts.session_view', session_id=ws.id) }}">View session {{ loop.index }}</a>
+  {% endfor %}
+  {{ share_button(s.day, "Share this day") }}
+</section>
+{% endfor %}
+{% endblock %}

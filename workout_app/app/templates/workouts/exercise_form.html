@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<form method="post" class="card" novalidate>
+  {{ form.hidden_tag() }}
+  {{ field(form.name, attrs={"required": true, "maxlength": 80}) }}
+  <div class="grid-2">
+    {{ field(form.muscle_group, attrs={"maxlength": 40, "placeholder": "Chest"}) }}
+    {{ field(form.equipment, attrs={"maxlength": 60, "placeholder": "Dumbbells"}) }}
+  </div>
+  <div class="grid-3">
+    {{ field(form.sets, attrs={"inputmode": "numeric", "min": 1, "max": 20}) }}
+    {{ field(form.reps, attrs={"maxlength": 20}) }}
+    {{ field(form.rest_seconds, attrs={"inputmode": "numeric", "min": 0, "max": 600}) }}
+  </div>
+  {{ field(form.instructions, attrs={"rows": 4, "maxlength": 2000}) }}
+  {{ field(form.youtube_url, attrs={"inputmode": "url", "placeholder": "https://youtu.be/…"}) }}
+  <p class="hint">Leave empty and we'll try to find a tutorial automatically.</p>
+  <button class="btn btn-block" type="submit">Save</button>
+</form>
+{% endblock %}

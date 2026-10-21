@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field, post_button, video, share_button %}
+{% block title %}Workout{% endblock %}
+{% block content %}
+{% set tz = current_user.timezone %}
+<h1>Workout <span class="muted small">{{ ws.day.strftime('%a, %b %-d') }}</span></h1>
+<p class="muted">Started {{ ws.started_at|localtime(tz) }}{% if ws.ended_at %} · finished {{ ws.ended_at|localtime(tz) }}{% endif %}</p>
+
+{% if ws.ended_at %}
+<section class="card highlight">
+  <div class="stats">
+    <div class="stat"><span class="stat-value">{{ ws.calories if ws.calories is not none else "—" }}</span>
+      <span class="stat-label">active kcal{% if ws.calories_source %} · {{ {"apple": "Apple Watch", "oura": "Oura", "manual": "manual"}[ws.calories_source] }}{% endif %}</span></div>
+    <div class="stat"><span class="stat-value">{{ ws.entries|length }}</span><span class="stat-label">exercises</span></div>
+    <div class="stat"><span class="stat-value">{{ ((ws.ended_at - ws.started_at).total_seconds() // 60)|int }}</span><span class="stat-label">minutes</span></div>
+  </div>
+  <div class="row-wrap">
+    {{ post_button(url_for('workouts.session_refresh', session_id=ws.id), "↻ Refresh calories", "btn btn-secondary") }}
+    {% if apple_shortcut_url %}<a class="btn btn-secondary" href="{{ apple_shortcut_url }}">⌚ Send Apple Watch calories</a>{% endif %}
+  </div>
+  <details>
+    <summary class="small">Enter calories manually</summary>
+    <form method="post" action="{{ url_for('workouts.session_manual_calories', session_id=ws.id) }}" class="row-wrap">
+      {{ cal_form.hidden_tag() }}
+      {{ cal_form.calories(inputmode="numeric", min=0, max=10000, placeholder="kcal") }}
+      <button class="btn" type="submit">Save</button>
+    </form>
+  </details>
+  {{ share_button(ws.day) }}
+</section>
+{% endif %}
+
+{% if not ws.ended_at %}
+<section class="card">
+  <h2>Log an exercise</h2>
+  {% if form.exercise_id.choices %}
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+    {{ field(form.exercise_id) }}
+    <div class="grid-3">
+      {{ field(form.sets_done, attrs={"inputmode": "numeric", "min": 1, "max": 50}) }}
+      {{ field(form.reps_done, attrs={"maxlength": 20, "placeholder": "10"}) }}
+      {{ field(form.weight, attrs={"maxlength": 20, "placeholder": "25 lb"}) }}
+    </div>
+    <button class="btn btn-block" type="submit">＋ Add to workout</button>
+  </form>
+  {% else %}
+  <p class="muted">Your exercise library is empty. <a href="{{ url_for('workouts.exercise_new') }}">Add one</a> or <a href="{{ url_for('workouts.exercise_ai') }}">build with AI</a>.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Done so far</h2>
+  {% if not ws.entries %}<p class="muted">Nothing logged yet.</p>{% endif %}
+  {% for e in ws.entries %}
+  {% set ex = library.get(e.exercise_id) %}
+  <details class="entry">
+    <summary><strong>{{ e.exercise_name }}</strong> <span class="muted small">{{ e.sets_done }} × {{ e.reps_done }}{% if e.weight %} @ {{ e.weight }}{% endif %}</span></summary>
+    {% if ex %}{{ video(ex.youtube_video_id, ex.name) }}{% if ex.instructions %}<p class="pre small">{{ ex.instructions }}</p>{% endif %}{% endif %}
+    {% if not ws.ended_at %}{{ post_button(url_for('workouts.entry_delete', session_id=ws.id, entry_id=e.id), "Remove", "btn btn-danger btn-small") }}{% endif %}
+  </details>
+  {% endfor %}
+</section>
+
+<div class="row-wrap">
+  {% if not ws.ended_at %}
+    {{ post_button(url_for('workouts.session_finish', session_id=ws.id), "🏁 Finish workout", "btn btn-block") }}
+  {% endif %}
+  {{ post_button(url_for('workouts.session_delete', session_id=ws.id), "Delete workout", "btn btn-danger", confirm="Delete this workout?") }}
+</div>
+{% endblock %}

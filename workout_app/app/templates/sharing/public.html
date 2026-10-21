@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ owner.display_name }}'s workout{% endblock %}
+{% block head %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+{% set s = summary %}
+<section class="card share-card {{ 'went' if s.went_to_gym else 'skipped' }}">
+  <p class="muted">{{ s.day.strftime('%A, %B %-d') }}</p>
+  {% if s.went_to_gym %}
+    <h1>💪 {{ owner.display_name }} trained today</h1>
+  {% else %}
+    <h1>😴 {{ owner.display_name }} didn't go to the gym</h1>
+    <p>Rest day or skipped — give them a nudge!</p>
+  {% endif %}
+
+  {% set active_kcal, active_src = s.headline_active %}
+  <div class="stats">
+    <div class="stat"><span class="stat-value">{{ s.session_kcal or "—" }}</span><span class="stat-label">workout kcal</span></div>
+    <div class="stat"><span class="stat-value">{{ active_kcal if active_kcal is not none else "—" }}</span><span class="stat-label">active kcal (day)</span></div>
+    <div class="stat"><span class="stat-value">{{ s.exercise_names|length }}</span><span class="stat-label">exercises</span></div>
+  </div>
+
+  {% if s.went_to_gym %}
+  <h2>Exercises</h2>
+  <ul class="list">
+    {% for ws in s.sessions %}{% for e in ws.entries %}
+      <li>{{ e.exercise_name }} <span class="muted small">{{ e.sets_done }} × {{ e.reps_done }}{% if e.weight %} @ {{ e.weight }}{% endif %}</span></li>
+    {% endfor %}{% endfor %}
+  </ul>
+  {% endif %}
+</section>
+<p class="center small muted">Shared with FitLog</p>
+{% endblock %}

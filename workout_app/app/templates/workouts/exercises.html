@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "_macros.html" import post_button, video %}
+{% block title %}Exercises{% endblock %}
+{% block content %}
+<h1>Exercises</h1>
+<div class="row-wrap">
+  <a class="btn" href="{{ url_for('workouts.exercise_new') }}">＋ Add manually</a>
+  <a class="btn btn-ai" href="{{ url_for('workouts.exercise_ai') }}">✨ Build with AI</a>
+  <a class="btn btn-secondary" href="{{ url_for('workouts.gym_profile') }}">My gym</a>
+</div>
+
+{% if not exercises %}
+<section class="card"><p class="muted">Your library is empty. Add an exercise yourself or let the AI build a workout for your gym.</p></section>
+{% endif %}
+
+{% for ex in exercises %}
+<details class="card exercise">
+  <summary>
+    <span class="ex-name">{{ ex.name }}{% if ex.source == "ai" %} <span class="tag">AI</span>{% endif %}</span>
+    <span class="muted small">{{ ex.sets }} × {{ ex.reps }}{% if ex.muscle_group %} · {{ ex.muscle_group }}{% endif %}</span>
+  </summary>
+  {{ video(ex.youtube_video_id, ex.name) }}
+  {% if not ex.youtube_video_id %}
+    <a class="small" href="{{ search_url(ex.name) }}" target="_blank" rel="noopener noreferrer">▶ Find a how-to video on YouTube</a>
+  {% endif %}
+  {% if ex.instructions %}<p class="pre">{{ ex.instructions }}</p>{% endif %}
+  <p class="small muted">{% if ex.equipment %}Equipment: {{ ex.equipment }} · {% endif %}Rest {{ ex.rest_seconds }}s</p>
+  <div class="row-wrap">
+    <a class="btn btn-secondary" href="{{ url_for('workouts.exercise_edit', exercise_id=ex.id) }}">Edit</a>
+    {{ post_button(url_for('workouts.exercise_delete', exercise_id=ex.id), "Delete", "btn btn-danger", confirm="Delete " ~ ex.name ~ "?") }}
+  </div>
+</details>
+{% endfor %}
+{% endblock %}

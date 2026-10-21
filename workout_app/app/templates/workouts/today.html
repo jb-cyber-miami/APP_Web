@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_macros.html" import post_button, share_button %}
+{% block title %}Today{% endblock %}
+{% block content %}
+<h1>Today <span class="muted small">{{ summary.day.strftime('%a, %b %-d') }}</span></h1>
+
+<section class="card">
+  {% with s = summary %}{% include "workouts/_day_card.html" %}{% endwith %}
+  {% if active %}
+    <a class="btn btn-block" href="{{ url_for('workouts.session_view', session_id=active.id) }}">▶ Continue workout (started {{ active.started_at|localtime(current_user.timezone) }})</a>
+  {% else %}
+    {{ post_button(url_for('workouts.session_start'), "▶ Start workout", "btn btn-block") }}
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Sessions</h2>
+  {% if not summary.sessions %}
+    <p class="muted">No workout logged yet today.</p>
+  {% endif %}
+  <ul class="list">
+  {% for ws in summary.sessions %}
+    <li>
+      <a href="{{ url_for('workouts.session_view', session_id=ws.id) }}">
+        <strong>{{ ws.started_at|localtime(current_user.timezone) }}{% if ws.ended_at %} – {{ ws.ended_at|localtime(current_user.timezone) }}{% else %} · in progress{% endif %}</strong>
+        <span class="muted">{{ ws.entries|length }} exercises{% if ws.calories is not none %} · {{ ws.calories }} kcal{% endif %}</span>
+      </a>
+    </li>
+  {% endfor %}
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Tell a friend</h2>
+  <p class="muted">{% if summary.went_to_gym %}Share today's workout and calories.{% else %}Didn't make it today? Share that too — accountability works.{% endif %}</p>
+  {{ share_button(summary.day) }}
+</section>
+{% endblock %}

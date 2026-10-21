@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field, post_button %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+
+<section class="card">
+  <h2>Profile</h2>
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+    {{ field(form.display_name) }}
+    {{ field(form.timezone, attrs={"list": "tz-list", "autocapitalize": "none", "data-detect-tz": "1"}) }}
+    <datalist id="tz-list">
+      <option value="America/New_York"><option value="America/Chicago"><option value="America/Denver">
+      <option value="America/Los_Angeles"><option value="America/Sao_Paulo"><option value="Europe/London">
+      <option value="Europe/Lisbon"><option value="UTC">
+    </datalist>
+    <p class="hint">Days and history are based on this timezone. <button type="button" class="link" data-use-device-tz>Use my phone's timezone</button></p>
+    <button class="btn" type="submit">Save</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Sign-in methods</h2>
+  <ul class="plain">
+    <li>Username: <strong>{{ current_user.username }}</strong></li>
+    <li>Password: {{ "set" if current_user.password_hash else "not set (Google only)" }}</li>
+    <li>Google: {% if current_user.google_sub %}linked{% if current_user.email %} ({{ current_user.email }}){% endif %}{% elif google_enabled %}<a href="{{ url_for('auth.google_login') }}">Link Google account</a>{% else %}not configured{% endif %}</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>{{ "Change password" if current_user.password_hash else "Set a password" }}</h2>
+  <form method="post" action="{{ url_for('auth.change_password') }}" novalidate>
+    {{ pw_form.hidden_tag() }}
+    {% if current_user.password_hash %}{{ field(pw_form.current, attrs={"autocomplete": "current-password"}) }}{% endif %}
+    {{ field(pw_form.password, attrs={"autocomplete": "new-password", "minlength": 10}) }}
+    {{ field(pw_form.confirm, attrs={"autocomplete": "new-password"}) }}
+    <button class="btn" type="submit">Save password</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Security</h2>
+  <div class="row-wrap">
+    {{ post_button(url_for('auth.logout'), "Sign out", "btn btn-secondary") }}
+    {{ post_button(url_for('auth.logout_everywhere'), "Sign out on all devices", "btn btn-secondary") }}
+    <a class="btn btn-secondary" href="{{ url_for('sharing.manage') }}">Manage share links</a>
+  </div>
+</section>
+
+<section class="card danger-zone">
+  <h2>Delete account</h2>
+  <p>This permanently deletes your account, workouts, synced health data and share links.</p>
+  <form method="post" action="{{ url_for('auth.delete_account') }}" data-confirm="Delete everything? This can't be undone.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field"><label for="confirm">Type your username to confirm</label>
+      <input id="confirm" name="confirm" autocomplete="off" autocapitalize="none"></div>
+    <button class="btn btn-danger" type="submit">Delete my account</button>
+  </form>
+</section>
+{% endblock %}

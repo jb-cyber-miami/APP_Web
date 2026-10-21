@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field %}
+{% block title %}My gym{% endblock %}
+{% block content %}
+<h1>My gym</h1>
+<p class="muted">The AI builder only picks exercises you can do with this equipment.</p>
+<form method="post" class="card" novalidate>
+  {{ form.hidden_tag() }}
+  {{ field(form.gym_size) }}
+  <div class="field">
+    {{ form.equipment.label }}
+    <div class="checkgrid">{{ form.equipment() }}</div>
+  </div>
+  {{ field(form.goal) }}
+  {{ field(form.experience) }}
+  {{ field(form.notes, attrs={"rows": 3, "maxlength": 500}) }}
+  <button class="btn btn-block" type="submit">Save gym</button>
+</form>
+{% endblock %}
