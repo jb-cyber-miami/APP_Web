@@ -53,7 +53,7 @@
           <span class="list-row-title">{{ lf.name }}{% if lf.pr %} {{ chip("PR", "ok") }}{% endif %}</span>
           <span class="list-row-meta num">{{ lf.muscle|muscle_label }} · best {{ lf.best_set }}{% if lf.stale %} · not trained lately{% endif %}</span>
         </span>
-        <span class="list-row-trail num"><span class="trail-value">{{ lf.current_e1rm|weight(unit) }}</span><span class="eyebrow">e1RM</span></span>
+        <span class="list-row-trail num"><span class="trail-value">{{ (lf.current_e1rm|round|int)|weight(unit) }}</span><span class="eyebrow">e1RM</span></span>
       {% if lf.exercise_id %}</a>{% else %}</div>{% endif %}
     </li>
     {% endfor %}

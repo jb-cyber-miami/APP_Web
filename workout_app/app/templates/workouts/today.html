@@ -57,8 +57,8 @@
     {% endif %}
 
     {% if hero.focus %}
-    <ul class="chip-row" aria-label="Focus muscles">
-      {% for f in hero.focus %}<li>{{ chip(f.label ~ " " ~ f.pct ~ "%", "", dot=f.rec) }}</li>{% endfor %}
+    <ul class="chip-row chip-row-wrap" aria-label="Focus muscles">
+      {% for f in hero.focus[:4] %}<li>{{ chip(f.label ~ " " ~ f.pct ~ "%", "", dot=f.rec) }}</li>{% endfor %}
     </ul>
     {% endif %}
 
@@ -70,15 +70,6 @@
     </div>
     {% endif %}
 
-    {% if hero.rows %}
-    <ul class="plan-list">
-      {% for row in hero.rows %}{{ plan_row(row) }}{% endfor %}
-    </ul>
-    {% if hero.more %}<p class="plan-more t-footnote">+ {{ hero.more }} more</p>{% endif %}
-    {% endif %}
-
-    {% if p and p.notice %}<p class="hero-notice t-footnote">{{ icon("info", "icon-xs") }}{{ p.notice }}</p>{% endif %}
-
     <form method="post" action="{{ url_for('workouts.plan_start') }}" class="hero-cta">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% if hero.state == "rest" %}
@@ -87,6 +78,15 @@
       <button type="submit" class="btn btn-lg btn-block">{{ icon("play", "icon-sm") }}<span>Start workout</span></button>
       {% endif %}
     </form>
+
+    {% if hero.rows %}
+    <ul class="plan-list">
+      {% for row in hero.rows %}{{ plan_row(row) }}{% endfor %}
+    </ul>
+    {% if hero.more %}<p class="plan-more t-footnote">+ {{ hero.more }} more</p>{% endif %}
+    {% endif %}
+
+    {% if p and p.notice %}<p class="hero-notice t-footnote">{{ icon("info", "icon-xs") }}{{ p.notice }}</p>{% endif %}
 
     <details class="hero-more">
       <summary>{{ icon("sparkle", "icon-sm") }}<span>Change today's plan</span>{{ icon("chevron-down", "icon-sm chev") }}</summary>
@@ -141,7 +141,7 @@
       {% if items %}
       <div class="rec-group">
         <dt><span class="dot {{ 'rec-0' if key == 'fatigued' else ('rec-2' if key == 'recovering' else 'rec-4') }}" aria-hidden="true"></span>{{ label }}</dt>
-        <dd>{% for v in items %}{{ v.label }}{% if v.trained and key != "fresh" %} <span class="num">{{ v.pct }}%</span>{% if v.ready_in_h %} <span class="muted">· ready in {{ v.ready_in_h }}h</span>{% endif %}{% endif %}{{ ", " if not loop.last }}{% endfor %}</dd>
+        <dd>{% for v in items %}{% if key != "fresh" %}<span class="rec-item"><span class="dot {{ v.rec }}" aria-hidden="true"></span>{{ v.label }}</span>{% else %}{{ v.label }}{% endif %}{% if v.trained and key != "fresh" %} <span class="num">{{ v.pct }}%</span>{% if v.ready_in_h %} <span class="muted">· ready in {{ v.ready_in_h }}h</span>{% endif %}{% endif %}{{ ", " if not loop.last }}{% endfor %}</dd>
       </div>
       {% endif %}
       {% endfor %}

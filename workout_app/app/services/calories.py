@@ -48,6 +48,23 @@ def session_calories(session: WorkoutSession) -> tuple[int | None, str | None]:
     return None, None
 
 
+def entry_trained(entry) -> bool:
+    """A legacy entry (no EntryPlan) or a tracked entry with at least one logged set."""
+    return entry.plan is None or bool(entry.set_logs)
+
+
+def session_trained(session: WorkoutSession) -> bool:
+    """Did this session record training? (the "went to the gym" rule, see ARCHITECTURE.md)
+
+    Starting today's plan creates untouched tracked entries straight away; those alone are
+    not training. A session counts when it has a legacy entry or a logged set, or when it was
+    finished and is either empty (a quick "I went") or has wearable/manual calories.
+    """
+    if any(entry_trained(e) for e in session.entries):
+        return True
+    return session.ended_at is not None and (not session.entries or session.calories is not None)
+
+
 @dataclass
 class DaySummary:
     day: date
@@ -58,7 +75,7 @@ class DaySummary:
 
     @property
     def went_to_gym(self) -> bool:
-        return any(s.ended_at is not None or s.entries for s in self.sessions)
+        return any(session_trained(s) for s in self.sessions)
 
     @property
     def headline_active(self) -> tuple[int | None, str | None]:
@@ -68,12 +85,22 @@ class DaySummary:
         return None, None
 
     @property
+    def logged_entries(self) -> list:
+        """Entries that recorded training (legacy, or tracked with >= 1 logged set)."""
+        return [e for s in self.sessions for e in s.entries if entry_trained(e)]
+
+    @property
+    def planned_entries(self) -> list:
+        """Every entry of the day, logged or not (shown dimmed when nothing was logged)."""
+        return [e for s in self.sessions for e in s.entries]
+
+    @property
     def exercise_names(self) -> list[str]:
+        """Distinct names of the exercises actually done (untouched planned ones are left out)."""
         names: list[str] = []
-        for s in self.sessions:
-            for e in s.entries:
-                if e.exercise_name not in names:
-                    names.append(e.exercise_name)
+        for e in self.logged_entries:
+            if e.exercise_name not in names:
+                names.append(e.exercise_name)
         return names
 
 

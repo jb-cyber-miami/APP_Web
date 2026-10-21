@@ -53,6 +53,7 @@ class EntryView:
     is_current: bool
     is_complete: bool
     can_swap: bool
+    unit: str = ""  # tracked: EntryPlan.unit (targets, prefills and logged sets use it); legacy: ""
 
 
 def num_text(value: float | None) -> str:
@@ -161,6 +162,7 @@ def entry_views(ws: WorkoutSession, *, library: dict[int, Exercise]) -> list[Ent
                     is_current=current,
                     is_complete=done >= planned,
                     can_swap=done == 0 and ws.ended_at is None,
+                    unit=plan.unit if plan.unit in ("lb", "kg") else "lb",
                 )
             )
         else:
@@ -297,3 +299,14 @@ def progress(ws: WorkoutSession) -> tuple[int, int]:
         if len(entry.set_logs) >= planned_count(entry):
             complete += 1
     return complete, tracked
+
+
+def set_progress(ws: WorkoutSession) -> tuple[int, int]:
+    """(sets logged, sets planned) over the tracked entries; drives the active-workout bar."""
+    done = planned = 0
+    for entry in ws.entries:
+        if entry.plan is None:
+            continue
+        done += len(entry.set_logs)
+        planned += planned_count(entry)
+    return done, planned

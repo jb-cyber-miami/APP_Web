@@ -12,10 +12,10 @@ A mobile-first web app for running your gym routine from your phone.
 | Oura Ring sync | OAuth2 → daily active calories + workouts |
 | Apple Watch / Apple Health sync | iPhone Shortcut posts calories to a token-protected API |
 | Calories at the end of each session | Wearable workout calories that overlap the session window are attributed to it (Apple preferred, Oura fallback, manual override) |
-| Share your day with a friend | Expiring, revocable link showing exercises + calories, or that you **didn't** go to the gym; uses the phone's native share sheet |
+| Share your day with a friend | Expiring, revocable link showing the exercises you actually logged + calories, or that you **didn't** go to the gym; uses the phone's native share sheet. Starting a plan without logging a set doesn't count as a gym day |
 | AI coach: **Today's workout** | One tap plans today's session around muscle recovery, recent training and neglected muscles. Claude composes it when a key is set; a deterministic plan is always available without one |
-| Muscle **Recovery** | 0–100 % per muscle group from the last 7 days of logged sets (dose and time based), shown as a body map |
-| Set-by-set logging | Check off each set, rate it Easy / Good / Hard, rest timer, add a set, swap an exercise before you start it |
+| Muscle **Recovery** | 0–100 % per muscle group from the last 7 days of logged sets (dose and time based), shown as a body map with a Fatigued → Fresh colour scale |
+| Set-by-set logging | Check off each set, rate it Easy / Good / Hard, rest timer, add a set, swap an exercise before you start it. Only the current exercise is expanded; finishing one opens the next. Each exercise keeps the unit (lb/kg) it was planned in, so switching units mid-workout never mislabels a set |
 | Progressive overload: **Next targets** | Estimated 1RM (Epley) from your history prescribes next session's weight and reps per set; ratings steer the next prescription |
 | **Strength Index** | Your lifts compared with your own starting point (100 = baseline), per muscle group and overall, plus PRs, streak and a monthly calendar |
 
@@ -40,7 +40,8 @@ feature switches on when its keys are present. See [docs/INTEGRATIONS.md](docs/I
 Tables are created with `db.create_all()` at start-up. This release only **adds** tables
 (`trainer_settings`, `exercise_muscles`, `entry_plan`, `set_log`, `daily_plan`, `ai_usage`),
 so an existing `workout.db` keeps working and old sessions show up as plain (legacy) entries.
-No need to delete it.
+No need to delete it. (The later review fixes changed behaviour only, not the schema: no new
+tables or columns.)
 
 ## Checks (the same ones CI runs)
 

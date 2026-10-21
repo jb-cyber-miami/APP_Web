@@ -61,39 +61,41 @@ Services hold no `request` objects and no templates. Routes stay thin (ARCHITECT
 ### 1.2 New tables (all carry `user_id`, all loaded through `owned_or_404` or filtered by `user_id`)
 
 ```python
-class TrainerSettings(db.Model):          # one row per user, created lazily like GymProfile
+class TrainerSettings(db.Model):  # one row per user, created lazily like GymProfile
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), unique=True, nullable=False)
-    unit = db.Column(db.String(2), nullable=False, default="lb")          # "lb" | "kg"
-    default_minutes = db.Column(db.Integer, nullable=False, default=45)    # 10..120
+    unit = db.Column(db.String(2), nullable=False, default="lb")  # "lb" | "kg"
+    default_minutes = db.Column(db.Integer, nullable=False, default=45)  # 10..120
 
 
-class ExerciseMuscles(db.Model):          # canonical tags for a library exercise
+class ExerciseMuscles(db.Model):  # canonical tags for a library exercise
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
-    exercise_id = db.Column(db.Integer, db.ForeignKey("exercise.id", ondelete="CASCADE"),
-                            unique=True, nullable=False)
-    primary = db.Column(db.String(12))                    # canonical group or NULL (cardio)
-    secondary_json = db.Column(db.Text, nullable=False, default="[]")   # list[str], canonical, ≤4
+    exercise_id = db.Column(
+        db.Integer, db.ForeignKey("exercise.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    primary = db.Column(db.String(12))  # canonical group or NULL (cardio)
+    secondary_json = db.Column(db.Text, nullable=False, default="[]")  # list[str], canonical, ≤4
     pattern = db.Column(db.String(20), nullable=False, default="other")
     source = db.Column(db.String(10), nullable=False, default="rules")  # rules | ai | user
 
 
-class SetLog(db.Model):                   # one row per performed set
+class SetLog(db.Model):  # one row per performed set
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
-    entry_id = db.Column(db.Integer, db.ForeignKey("session_entry.id", ondelete="CASCADE"),
-                         nullable=False, index=True)
-    set_index = db.Column(db.Integer, nullable=False)     # 0-based within the entry
-    reps = db.Column(db.Integer)                          # 0..100, NULL for timed sets
-    seconds = db.Column(db.Integer)                       # 1..600, timed sets only
-    weight = db.Column(db.Float)                          # 0..2000, NULL = bodyweight
+    entry_id = db.Column(
+        db.Integer, db.ForeignKey("session_entry.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    set_index = db.Column(db.Integer, nullable=False)  # 0-based within the entry
+    reps = db.Column(db.Integer)  # 0..100, NULL for timed sets
+    seconds = db.Column(db.Integer)  # 1..600, timed sets only
+    weight = db.Column(db.Float)  # 0..2000, NULL = bodyweight
     unit = db.Column(db.String(2), nullable=False, default="lb")
-    rating = db.Column(db.String(4))                      # "easy" | "ok" | "hard" | NULL
-    target_reps = db.Column(db.Integer)                   # copied from the plan, if any
+    rating = db.Column(db.String(4))  # "easy" | "ok" | "hard" | NULL
+    target_reps = db.Column(db.Integer)  # copied from the plan, if any
     target_seconds = db.Column(db.Integer)
     target_weight = db.Column(db.Float)
-    logged_at = db.Column(db.DateTime, nullable=False, default=utcnow)   # UTC
+    logged_at = db.Column(db.DateTime, nullable=False, default=utcnow)  # UTC
 
     entry = db.relationship(
         "SessionEntry",
@@ -101,24 +103,24 @@ class SetLog(db.Model):                   # one row per performed set
     )
 
 
-class DailyPlan(db.Model):                # today's workout (AI or fallback), validated JSON
+class DailyPlan(db.Model):  # today's workout (AI or fallback), validated JSON
     __table_args__ = (db.UniqueConstraint("user_id", "day"),)
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
-    day = db.Column(db.Date, nullable=False)              # user's timezone (today_for)
-    source = db.Column(db.String(10), nullable=False)     # "ai" | "fallback"
-    plan_json = db.Column(db.Text, nullable=False)        # TodayPlan.model_dump_json()
+    day = db.Column(db.Date, nullable=False)  # user's timezone (today_for)
+    source = db.Column(db.String(10), nullable=False)  # "ai" | "fallback"
+    plan_json = db.Column(db.Text, nullable=False)  # TodayPlan.model_dump_json()
     generations = db.Column(db.Integer, nullable=False, default=0)  # successful AI generations today (max 5)
     session_id = db.Column(db.Integer, db.ForeignKey("workout_session.id", ondelete="SET NULL"))
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 
 
-class AIUsage(db.Model):                  # per-user daily AI budget + token accounting
+class AIUsage(db.Model):  # per-user daily AI budget + token accounting
     __table_args__ = (db.UniqueConstraint("user_id", "day"),)
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
-    day = db.Column(db.Date, nullable=False)              # UTC day
+    day = db.Column(db.Date, nullable=False)  # UTC day
     calls = db.Column(db.Integer, nullable=False, default=0)
     input_tokens = db.Column(db.Integer, nullable=False, default=0)
     output_tokens = db.Column(db.Integer, nullable=False, default=0)
@@ -143,8 +145,19 @@ The existing `Exercise.query...delete()` is a bulk delete that bypasses ORM casc
 dependent rows must be deleted first:
 
 ```python
-for model in (AIUsage, DailyPlan, SetLog, EntryPlan, ExerciseMuscles, TrainerSettings,
-              ShareLink, ApiToken, HealthSample, Integration, GymProfile):
+for model in (
+    AIUsage,
+    DailyPlan,
+    SetLog,
+    EntryPlan,
+    ExerciseMuscles,
+    TrainerSettings,
+    ShareLink,
+    ApiToken,
+    HealthSample,
+    Integration,
+    GymProfile,
+):
     model.query.filter_by(user_id=uid).delete()
 # then sessions (ORM cascade to entries), then Exercise, then User (unchanged)
 ```
@@ -156,26 +169,76 @@ for model in (AIUsage, DailyPlan, SetLog, EntryPlan, ExerciseMuscles, TrainerSet
 ### 2.1 Canonical groups
 
 ```python
-MuscleGroup = Literal["chest", "back", "shoulders", "biceps", "triceps", "forearms",
-                      "core", "quads", "hamstrings", "glutes", "calves"]
-CANONICAL: tuple[MuscleGroup, ...] = ("chest", "back", "shoulders", "biceps", "triceps",
-    "forearms", "core", "quads", "hamstrings", "glutes", "calves")
+MuscleGroup = Literal[
+    "chest",
+    "back",
+    "shoulders",
+    "biceps",
+    "triceps",
+    "forearms",
+    "core",
+    "quads",
+    "hamstrings",
+    "glutes",
+    "calves",
+]
+CANONICAL: tuple[MuscleGroup, ...] = (
+    "chest",
+    "back",
+    "shoulders",
+    "biceps",
+    "triceps",
+    "forearms",
+    "core",
+    "quads",
+    "hamstrings",
+    "glutes",
+    "calves",
+)
 LARGE: frozenset[str] = frozenset({"chest", "back", "quads", "hamstrings", "glutes"})
-LABELS: dict[str, str]   # "quads" -> "Quads", used by the UI and the body map
+LABELS: dict[str, str]  # "quads" -> "Quads", used by the UI and the body map
 
-Pattern = Literal["horizontal_push", "vertical_push", "horizontal_pull", "vertical_pull",
-                  "squat", "hinge", "lunge", "isolation_upper", "isolation_lower",
-                  "core", "carry", "conditioning", "other"]
+Pattern = Literal[
+    "horizontal_push",
+    "vertical_push",
+    "horizontal_pull",
+    "vertical_pull",
+    "squat",
+    "hinge",
+    "lunge",
+    "isolation_upper",
+    "isolation_lower",
+    "core",
+    "carry",
+    "conditioning",
+    "other",
+]
 LOWER_COMPOUND: frozenset[str] = frozenset({"squat", "hinge", "lunge"})
 
-EquipmentKey = Literal["bodyweight", "dumbbells", "barbell", "squat_rack", "bench",
-    "cable_machine", "smith_machine", "leg_press", "machines", "kettlebells", "pull_up_bar",
-    "resistance_bands", "treadmill", "bike", "rower", "trx"]       # == forms.EQUIPMENT keys
+EquipmentKey = Literal[
+    "bodyweight",
+    "dumbbells",
+    "barbell",
+    "squat_rack",
+    "bench",
+    "cable_machine",
+    "smith_machine",
+    "leg_press",
+    "machines",
+    "kettlebells",
+    "pull_up_bar",
+    "resistance_bands",
+    "treadmill",
+    "bike",
+    "rower",
+    "trx",
+]  # == forms.EQUIPMENT keys
+
 
 @dataclass(frozen=True)
 class MuscleMap:
-    primary: MuscleGroup | None          # None = not strength work (cardio, mobility)
-    secondary: tuple[MuscleGroup, ...]   # never contains primary, max 4, canonical order
+    primary: MuscleGroup | None  # None = not strength work (cardio, mobility)
+    secondary: tuple[MuscleGroup, ...]  # never contains primary, max 4, canonical order
     pattern: Pattern = "other"
 ```
 
@@ -193,32 +256,76 @@ def normalize_group(text: str) -> list[MuscleGroup]
 ```python
 GROUP_SYNONYMS: dict[str, tuple[MuscleGroup, ...]] = {
     # single groups
-    "chest": ("chest",), "pec": ("chest",), "pecs": ("chest",), "pectorals": ("chest",),
-    "upper chest": ("chest",), "lower chest": ("chest",),
-    "back": ("back",), "lats": ("back",), "lat": ("back",), "upper back": ("back",),
-    "lower back": ("back",), "traps": ("back",), "trapezius": ("back",), "rhomboids": ("back",),
-    "erectors": ("back",), "spinal erectors": ("back",), "mid back": ("back",),
-    "shoulders": ("shoulders",), "shoulder": ("shoulders",), "delts": ("shoulders",),
-    "deltoids": ("shoulders",), "front delts": ("shoulders",), "side delts": ("shoulders",),
-    "rear delts": ("shoulders",), "rotator cuff": ("shoulders",),
-    "biceps": ("biceps",), "bicep": ("biceps",), "brachialis": ("biceps",),
-    "triceps": ("triceps",), "tricep": ("triceps",),
-    "forearms": ("forearms",), "forearm": ("forearms",), "grip": ("forearms",), "wrists": ("forearms",),
-    "core": ("core",), "abs": ("core",), "abdominals": ("core",), "obliques": ("core",),
-    "trunk": ("core",), "midsection": ("core",),
-    "quads": ("quads",), "quadriceps": ("quads",), "quad": ("quads",), "thighs": ("quads",),
-    "hamstrings": ("hamstrings",), "hamstring": ("hamstrings",), "hams": ("hamstrings",),
-    "glutes": ("glutes",), "glute": ("glutes",), "butt": ("glutes",), "hips": ("glutes",),
-    "hip": ("glutes",), "adductors": ("glutes",), "abductors": ("glutes",),
-    "calves": ("calves",), "calf": ("calves",),
+    "chest": ("chest",),
+    "pec": ("chest",),
+    "pecs": ("chest",),
+    "pectorals": ("chest",),
+    "upper chest": ("chest",),
+    "lower chest": ("chest",),
+    "back": ("back",),
+    "lats": ("back",),
+    "lat": ("back",),
+    "upper back": ("back",),
+    "lower back": ("back",),
+    "traps": ("back",),
+    "trapezius": ("back",),
+    "rhomboids": ("back",),
+    "erectors": ("back",),
+    "spinal erectors": ("back",),
+    "mid back": ("back",),
+    "shoulders": ("shoulders",),
+    "shoulder": ("shoulders",),
+    "delts": ("shoulders",),
+    "deltoids": ("shoulders",),
+    "front delts": ("shoulders",),
+    "side delts": ("shoulders",),
+    "rear delts": ("shoulders",),
+    "rotator cuff": ("shoulders",),
+    "biceps": ("biceps",),
+    "bicep": ("biceps",),
+    "brachialis": ("biceps",),
+    "triceps": ("triceps",),
+    "tricep": ("triceps",),
+    "forearms": ("forearms",),
+    "forearm": ("forearms",),
+    "grip": ("forearms",),
+    "wrists": ("forearms",),
+    "core": ("core",),
+    "abs": ("core",),
+    "abdominals": ("core",),
+    "obliques": ("core",),
+    "trunk": ("core",),
+    "midsection": ("core",),
+    "quads": ("quads",),
+    "quadriceps": ("quads",),
+    "quad": ("quads",),
+    "thighs": ("quads",),
+    "hamstrings": ("hamstrings",),
+    "hamstring": ("hamstrings",),
+    "hams": ("hamstrings",),
+    "glutes": ("glutes",),
+    "glute": ("glutes",),
+    "butt": ("glutes",),
+    "hips": ("glutes",),
+    "hip": ("glutes",),
+    "adductors": ("glutes",),
+    "abductors": ("glutes",),
+    "calves": ("calves",),
+    "calf": ("calves",),
     # compound labels (first = primary)
-    "legs": ("quads", "glutes", "hamstrings"), "lower body": ("quads", "glutes", "hamstrings"),
+    "legs": ("quads", "glutes", "hamstrings"),
+    "lower body": ("quads", "glutes", "hamstrings"),
     "legs and glutes": ("quads", "glutes", "hamstrings"),
     "posterior chain": ("hamstrings", "glutes", "back"),
-    "arms": ("biceps", "triceps"), "push": ("chest", "shoulders", "triceps"),
+    "arms": ("biceps", "triceps"),
+    "push": ("chest", "shoulders", "triceps"),
     "pull": ("back", "biceps"),
     # no muscle (cardio, mobility, unknown labels)
-    "full body": (), "upper body": (), "cardio": (), "conditioning": (), "mobility": (),
+    "full body": (),
+    "upper body": (),
+    "cardio": (),
+    "conditioning": (),
+    "mobility": (),
 }
 ```
 
@@ -412,7 +519,7 @@ Overlapping sessions combine like independent fatigue sources, so the value can 
 
 ```python
 WEEKLY_TARGET = {m: (10 if m in LARGE else 6) for m in CANONICAL}
-NEGLECT_EXCLUDE = frozenset({"forearms"})        # trained indirectly by pulling work
+NEGLECT_EXCLUDE = frozenset({"forearms"})  # trained indirectly by pulling work
 ```
 
 `neglected_muscles` uses a 14-day window. A muscle is neglected when it is not in `NEGLECT_EXCLUDE`,
@@ -751,9 +858,9 @@ NULLABLE_NUM = {"anyOf": [{"type": "number"}, {"type": "null"}]}
 SET_SCHEMA = {
     "type": "object",
     "properties": {
-        "target_reps": NULLABLE_INT,          # null for timed sets
-        "target_seconds": NULLABLE_INT,       # null for rep sets
-        "weight": NULLABLE_NUM,               # in the user's unit; null if unknown / bodyweight
+        "target_reps": NULLABLE_INT,  # null for timed sets
+        "target_seconds": NULLABLE_INT,  # null for rep sets
+        "weight": NULLABLE_NUM,  # in the user's unit; null if unknown / bodyweight
     },
     "required": ["target_reps", "target_seconds", "weight"],
     "additionalProperties": False,
@@ -771,8 +878,16 @@ EXERCISE_SCHEMA = {
         "sets": {"type": "array", "items": SET_SCHEMA},
         "form_cues": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["name", "primary_muscle", "secondary_muscles", "equipment",
-                 "movement_pattern", "rest_seconds", "sets", "form_cues"],
+    "required": [
+        "name",
+        "primary_muscle",
+        "secondary_muscles",
+        "equipment",
+        "movement_pattern",
+        "rest_seconds",
+        "sets",
+        "form_cues",
+    ],
     "additionalProperties": False,
 }
 
@@ -879,6 +994,7 @@ class AISet(BaseModel):
             raise ValueError("exactly one of target_reps / target_seconds")
         return self
 
+
 class AIExercise(BaseModel):
     name: str = Field(min_length=2, max_length=80)
     primary_muscle: MuscleGroup
@@ -887,10 +1003,13 @@ class AIExercise(BaseModel):
     movement_pattern: Pattern = "other"
     rest_seconds: int = Field(ge=0, le=600)
     sets: list[AISet] = Field(min_length=1, max_length=10)
-    form_cues: list[Annotated[str, StringConstraints(max_length=160)]] = Field(default_factory=list, max_length=4)
+    form_cues: list[Annotated[str, StringConstraints(max_length=160)]] = Field(
+        default_factory=list, max_length=4
+    )
     # "before" validator: collapse whitespace in name (and strip < >, truncate to 80); drop the
     # primary and duplicates from secondary_muscles (keep 4); dedupe equipment; drop empty cues,
     # truncate cues to 4 x 160 chars. Types, enums and numeric ranges stay strict.
+
 
 class AITodayPlan(BaseModel):
     title: str = Field(max_length=100)
@@ -914,12 +1033,12 @@ call it too, with no behaviour change; the existing tests assert on the kwargs. 
 
 ```python
 response = client.beta.messages.create(
-    model=current_app.config["AI_MODEL"],          # default claude-opus-5-5
-    max_tokens=max_tokens,                         # 16000 for today, 8000 for swaps
+    model=current_app.config["AI_MODEL"],  # default claude-opus-5-5
+    max_tokens=max_tokens,  # 16000 for today, 8000 for swaps
     system=system,
     messages=[{"role": "user", "content": prompt}],
     output_config={"effort": effort, "format": {"type": "json_schema", "schema": schema}},
-    betas=["server-side-fallback-2026-07-01"],     # a server-side retry on a refusal
+    betas=["server-side-fallback-2026-07-01"],  # a server-side retry on a refusal
     fallbacks="default",
 )
 ```
@@ -1205,8 +1324,8 @@ kickback, step-up), calves (standing calf raise, seated calf raise, single-leg c
 6. **Weights**: `next_targets` per exercise (history wins). With no history, use `weight=None`, and
    the UI shows an empty weight field.
 7. **Title**: `"{Template} · {Muscle A} & {Muscle B}"` (for example "Pull · Back & Biceps").
-   **Rationale**: built from data, for example "Back is 100% recovered and you last trained it 4 days
-   ago. Hamstrings haven't been trained in 9 days." `estimated_minutes` comes from §6.6 step 7.
+   **Rationale**: built from data, label first so plural groups read correctly, for example
+   "Back: 100% recovered, last trained 4 days ago. Little recent work for Hamstrings." `estimated_minutes` comes from §6.6 step 7.
 8. `notice`: "Built from your history and recovery." (no key, or "Rebuild without AI"), "The AI coach
    is unavailable right now, so this plan was built from your history." (AIError), "You've used
    today's AI coach requests. Here's a plan from your history." (budget) or "You've reached today's
@@ -1251,11 +1370,16 @@ class SetLogForm(FlaskForm):
     reps = IntegerField(validators=[Optional(), NumberRange(0, 100)])
     seconds = IntegerField(validators=[Optional(), NumberRange(1, 600)])
     weight = DecimalField(places=2, validators=[Optional(), NumberRange(0, 2000)])
-    rating = SelectField(choices=[("", "—"), ("easy", "Easy"), ("ok", "Good"), ("hard", "Hard")],
-                         validators=[Optional()], default="")
+    rating = SelectField(
+        choices=[("", "—"), ("easy", "Easy"), ("ok", "Good"), ("hard", "Hard")],
+        validators=[Optional()],
+        default="",
+    )
 ```
 
-There is no `plan_index` and no `unit` field: the unit comes from `TrainerSettings.unit`, and
+There is no `plan_index` and no `unit` field: the unit is the entry's `EntryPlan.unit` (planned
+weights are converted to the user's unit when the entry is created, so a later Settings change
+cannot mislabel a set), and
 targets (`target_*`) are copied **server-side** from the entry's `EntryPlan.targets_json[set_index]`,
 never taken from the form. Stored rating values are `easy` / `ok` / `hard`; `ok` is labelled "Good".
 

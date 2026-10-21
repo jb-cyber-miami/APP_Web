@@ -441,17 +441,17 @@ def _rationale(ctx: TrainerContext, muscles: list[MuscleGroup], template: str) -
         )
     lead = muscles[0]
     days = _days_since(ctx, lead)
-    text = f"{LABELS[lead]} is {_rec(ctx, lead)}% recovered"
+    # Label-first phrasing avoids is/are and it/them for plural groups ("Quads", "Calves").
+    text = f"{LABELS[lead]}: {_rec(ctx, lead)}% recovered"
     if days is None:
-        text += " and hasn't been trained this week."
+        text += ", not trained this week."
     else:
         whole = int(days)
-        text += f" and you last trained it {whole} day{'s' if whole != 1 else ''} ago."
+        text += f", last trained {whole} day{'s' if whole != 1 else ''} ago."
     neglected = [m for m in ctx.neglected if m in muscles and m != lead]
     if neglected:
         names = " and ".join(LABELS[m] for m in neglected[:2])
-        verb = "haven't" if len(neglected[:2]) > 1 else "hasn't"
-        text += f" {names} {verb} had much work lately."
+        text += f" Little recent work for {names}."
     return text[:400]
 
 
@@ -794,10 +794,27 @@ def _rep_bounds(sets: list[PlannedSet]) -> tuple[int | None, int | None]:
     return (min(reps), max(reps)) if reps else (None, None)
 
 
+def _targets_in_unit(pex: PlannedExercise, unit: str) -> list[PlannedSet]:
+    """The planned sets with every weight expressed in ``unit`` (rounded to real plates).
+
+    A plan can be built in lb and started after the user switched to kg (or the reverse);
+    ``EntryPlan.unit`` is the single unit of a tracked entry, so targets are converted here.
+    """
+    inc = increment(frozenset(pex.equipment), unit)
+    out: list[PlannedSet] = []
+    for s in pex.sets:
+        weight = s.weight
+        if weight is not None and s.unit != unit:
+            weight = min(2000.0, max(0.0, round_load(from_lb(to_lb(weight, s.unit), unit), inc)))
+        out.append(s.model_copy(update={"weight": weight, "unit": unit}))
+    return out
+
+
 def _apply_targets(plan_row: EntryPlan, pex: PlannedExercise, unit: str) -> None:
-    low, high = _rep_bounds(pex.sets)
-    plan_row.targets_json = dump_targets(pex.sets)
-    plan_row.unit = pex.sets[0].unit if pex.sets else unit
+    targets = _targets_in_unit(pex, unit)
+    low, high = _rep_bounds(targets)
+    plan_row.targets_json = dump_targets(targets)
+    plan_row.unit = unit
     plan_row.rest_seconds = pex.rest_seconds
     plan_row.rep_low, plan_row.rep_high = low, high
     plan_row.pattern = pex.movement_pattern

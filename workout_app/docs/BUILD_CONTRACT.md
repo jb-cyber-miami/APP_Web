@@ -57,88 +57,94 @@ Only **new tables**. No new columns on existing tables, so `db.create_all()` upg
 existing models add no columns.
 
 ```python
-class TrainerSettings(db.Model):              # lazily created; absence == defaults
+class TrainerSettings(db.Model):  # lazily created; absence == defaults
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), unique=True, nullable=False)
-    unit = db.Column(db.String(2), nullable=False, default="lb")            # "lb" | "kg"
-    default_minutes = db.Column(db.Integer, nullable=False, default=45)      # 10..120
+    unit = db.Column(db.String(2), nullable=False, default="lb")  # "lb" | "kg"
+    default_minutes = db.Column(db.Integer, nullable=False, default=45)  # 10..120
 
 
-class ExerciseMuscles(db.Model):              # canonical tags for one library exercise
+class ExerciseMuscles(db.Model):  # canonical tags for one library exercise
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
-    exercise_id = db.Column(db.Integer, db.ForeignKey("exercise.id", ondelete="CASCADE"),
-                            unique=True, nullable=False)
-    primary = db.Column(db.String(12))                                       # canonical or NULL
-    secondary_json = db.Column(db.Text, nullable=False, default="[]")        # list[str] canonical, <=4
+    exercise_id = db.Column(
+        db.Integer, db.ForeignKey("exercise.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    primary = db.Column(db.String(12))  # canonical or NULL
+    secondary_json = db.Column(db.Text, nullable=False, default="[]")  # list[str] canonical, <=4
     pattern = db.Column(db.String(20), nullable=False, default="other")
-    source = db.Column(db.String(10), nullable=False, default="rules")       # rules | ai | user
+    source = db.Column(db.String(10), nullable=False, default="rules")  # rules | ai | user
 
     exercise = db.relationship(
-        "Exercise", backref=db.backref("muscles_row", uselist=False, cascade="all, delete-orphan"))
+        "Exercise", backref=db.backref("muscles_row", uselist=False, cascade="all, delete-orphan")
+    )
 
 
-class EntryPlan(db.Model):                    # targets + coach state for one SessionEntry
+class EntryPlan(db.Model):  # targets + coach state for one SessionEntry
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
-    entry_id = db.Column(db.Integer, db.ForeignKey("session_entry.id", ondelete="CASCADE"),
-                         unique=True, nullable=False)
+    entry_id = db.Column(
+        db.Integer, db.ForeignKey("session_entry.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
     targets_json = db.Column(db.Text, nullable=False, default="[]")  # list[PlannedSet] JSON, 1..20 items
     unit = db.Column(db.String(2), nullable=False, default="lb")
     rest_seconds = db.Column(db.Integer, nullable=False, default=90)  # 0..600
-    rep_low = db.Column(db.Integer)                                   # NULL = timed
+    rep_low = db.Column(db.Integer)  # NULL = timed
     rep_high = db.Column(db.Integer)
     pattern = db.Column(db.String(20), nullable=False, default="other")
     progression_rule = db.Column(db.String(12), nullable=False, default="no_history")
     progression_note = db.Column(db.String(160), nullable=False, default="")
-    plan_index = db.Column(db.Integer)                                # index in DailyPlan, if from a plan
-    swaps_json = db.Column(db.Text, nullable=False, default="[]")     # list[PlannedExercise] JSON, <=3
-    swaps_source = db.Column(db.String(10))                           # "ai" | "fallback" | NULL
+    plan_index = db.Column(db.Integer)  # index in DailyPlan, if from a plan
+    swaps_json = db.Column(db.Text, nullable=False, default="[]")  # list[PlannedExercise] JSON, <=3
+    swaps_source = db.Column(db.String(10))  # "ai" | "fallback" | NULL
 
     entry = db.relationship(
-        "SessionEntry", backref=db.backref("plan", uselist=False, cascade="all, delete-orphan"))
+        "SessionEntry", backref=db.backref("plan", uselist=False, cascade="all, delete-orphan")
+    )
 
 
-class SetLog(db.Model):                       # one row per COMPLETED set
+class SetLog(db.Model):  # one row per COMPLETED set
     __table_args__ = (db.UniqueConstraint("entry_id", "set_index"),)
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
-    entry_id = db.Column(db.Integer, db.ForeignKey("session_entry.id", ondelete="CASCADE"),
-                         nullable=False, index=True)
-    set_index = db.Column(db.Integer, nullable=False)        # 0-based, 0..19
-    reps = db.Column(db.Integer)                             # 0..100; NULL for timed sets
-    seconds = db.Column(db.Integer)                          # 1..600; timed sets only
-    weight = db.Column(db.Float)                             # 0..2000 in `unit`; NULL = bodyweight
+    entry_id = db.Column(
+        db.Integer, db.ForeignKey("session_entry.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    set_index = db.Column(db.Integer, nullable=False)  # 0-based, 0..19
+    reps = db.Column(db.Integer)  # 0..100; NULL for timed sets
+    seconds = db.Column(db.Integer)  # 1..600; timed sets only
+    weight = db.Column(db.Float)  # 0..2000 in `unit`; NULL = bodyweight
     unit = db.Column(db.String(2), nullable=False, default="lb")
-    rating = db.Column(db.String(4))                         # "easy" | "ok" | "hard" | NULL
-    target_reps = db.Column(db.Integer)                      # copied server-side from EntryPlan
+    rating = db.Column(db.String(4))  # "easy" | "ok" | "hard" | NULL
+    target_reps = db.Column(db.Integer)  # copied server-side from EntryPlan
     target_seconds = db.Column(db.Integer)
     target_weight = db.Column(db.Float)
-    logged_at = db.Column(db.DateTime, nullable=False, default=utcnow)   # UTC
+    logged_at = db.Column(db.DateTime, nullable=False, default=utcnow)  # UTC
 
     entry = db.relationship(
         "SessionEntry",
-        backref=db.backref("set_logs", cascade="all, delete-orphan", order_by="SetLog.set_index"))
+        backref=db.backref("set_logs", cascade="all, delete-orphan", order_by="SetLog.set_index"),
+    )
 
 
-class DailyPlan(db.Model):                    # today's plan (AI or fallback), validated JSON
+class DailyPlan(db.Model):  # today's plan (AI or fallback), validated JSON
     __table_args__ = (db.UniqueConstraint("user_id", "day"),)
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
-    day = db.Column(db.Date, nullable=False)                 # user's timezone (today_for)
-    source = db.Column(db.String(10), nullable=False)        # "ai" | "fallback"
-    plan_json = db.Column(db.Text, nullable=False)           # TodayPlan.model_dump_json()
-    generations = db.Column(db.Integer, nullable=False, default=0)   # AI generations today (max 5)
+    day = db.Column(db.Date, nullable=False)  # user's timezone (today_for)
+    source = db.Column(db.String(10), nullable=False)  # "ai" | "fallback"
+    plan_json = db.Column(db.Text, nullable=False)  # TodayPlan.model_dump_json()
+    generations = db.Column(db.Integer, nullable=False, default=0)  # AI generations today (max 5)
     session_id = db.Column(db.Integer, db.ForeignKey("workout_session.id", ondelete="SET NULL"))
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 
 
-class AIUsage(db.Model):                      # per-user daily AI budget + token accounting
+class AIUsage(db.Model):  # per-user daily AI budget + token accounting
     __table_args__ = (db.UniqueConstraint("user_id", "day"),)
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
-    day = db.Column(db.Date, nullable=False)                 # UTC day
+    day = db.Column(db.Date, nullable=False)  # UTC day
     calls = db.Column(db.Integer, nullable=False, default=0)
     input_tokens = db.Column(db.Integer, nullable=False, default=0)
     output_tokens = db.Column(db.Integer, nullable=False, default=0)
@@ -464,7 +470,9 @@ def streak_weeks(user, today: date) -> int
     # consecutive ISO weeks with ≥1 gym day, ending this week (or last week if this week has none yet)
 ```
 
-"Gym day" uses the same rule as `DaySummary.went_to_gym`: a session finished, or one with entries.
+"Gym day" uses the same rule as `DaySummary.went_to_gym` (`calories.session_trained`): a session with a
+legacy entry or at least one `SetLog`, or a finished session that is empty or has calories. Untouched
+tracked entries (a plan that was only started) do not count.
 
 ### 2.9 `app/services/prefs.py` (engineer)
 
@@ -651,7 +659,8 @@ or a flash with a redirect. **JSON mode** is used if and only if the request hea
 // 200, set_log / set_delete / set_rate
 {"ok": true, "set_id": 41 /* null after delete */, "set_index": 1, "is_done": true,
  "rating": "ok" /* or null */, "entry_done": 2, "entry_planned": 4,
- "exercises_done": 1, "exercises_total": 6, "unlogged_sets": 13, "rest_seconds": 120,
+ "exercises_done": 1, "exercises_total": 6, "sets_done": 5, "sets_total": 18,
+ "unlogged_sets": 13, "rest_seconds": 120,
  "action": "/sessions/7/sets/41/delete" /* next action for this row's check button */,
  "rate_action": "/sessions/7/sets/41/rate" /* null after delete */}
 // 400
@@ -691,21 +700,25 @@ Route-local view shapes (defined in `app/workouts/routes.py`, engineer):
 class HeroView:
     state: Literal["plan", "active", "done", "rest"]
     title: str
-    plan: TodayPlan | None             # plan/rest: today's plan; active: linked plan if any
+    plan: TodayPlan | None  # plan/rest: today's plan; active: linked plan if any
     plan_saved: bool
-    session: WorkoutSession | None     # active: open session; done: latest finished today
-    rows: list[PlanRowView]            # first 3 plan rows (plan/rest)
-    more: int                          # remaining plan rows
+    session: WorkoutSession | None  # active: open session; done: latest finished today
+    rows: list[PlanRowView]  # first 3 plan rows (plan/rest)
+    more: int  # remaining plan rows
     total_sets: int
-    focus: list[RecoveryView]          # plan.focus_muscles mapped through RecoveryPanel.by_muscle
-    exercises_done: int; exercises_total: int      # active
-    done_kcal: int | None; done_minutes: int | None # done
+    focus: list[RecoveryView]  # plan.focus_muscles mapped through RecoveryPanel.by_muscle
+    exercises_done: int
+    exercises_total: int  # active
+    done_kcal: int | None
+    done_minutes: int | None  # done
+
 
 @dataclass(frozen=True)
 class HistoryRow:
-    day: date; session_id: int
-    sets: list[str]                    # ["135 × 10", "145 × 8"] or legacy ["3 × 10 @ 135 lb"]
-    e1rm: float | None                 # display unit
+    day: date
+    session_id: int
+    sets: list[str]  # ["135 × 10", "145 × 8"] or legacy ["3 × 10 @ 135 lb"]
+    e1rm: float | None  # display unit
 ```
 
 Hero state rules, evaluated in order:

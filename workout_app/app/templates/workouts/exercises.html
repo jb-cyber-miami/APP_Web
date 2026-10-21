@@ -62,7 +62,7 @@
           {% if ex.youtube_video_id %}
           <img class="ex-thumb" src="https://i.ytimg.com/vi/{{ ex.youtube_video_id }}/mqdefault.jpg" alt="" loading="lazy" width="56" height="56">
           {% else %}
-          <span class="ex-thumb ex-thumb-empty" aria-hidden="true">{{ icon("muscle", "icon-sm") }}</span>
+          <span class="ex-thumb ex-thumb-empty" aria-hidden="true">{{ icon("library", "icon-sm") }}</span>
           {% endif %}
           <span class="list-row-body">
             <span class="list-row-title">{{ ex.name }}{% if ex.source == "ai" %} <span class="tag tag-ai">AI</span>{% endif %}</span>

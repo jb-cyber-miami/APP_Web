@@ -124,9 +124,7 @@
 
 {% macro rec_legend() -%}
 <ul class="bm-legend" aria-label="Legend">
-  <li><span class="dot rec-4" aria-hidden="true"></span>Fresh</li>
-  <li><span class="dot rec-2" aria-hidden="true"></span>Recovering</li>
-  <li><span class="dot rec-0" aria-hidden="true"></span>Fatigued</li>
+  <li class="bm-scale"><span>Fatigued</span><span class="bm-scale-bar" aria-hidden="true"><i class="rec-0"></i><i class="rec-1"></i><i class="rec-2"></i><i class="rec-3"></i><i class="rec-4"></i></span><span>Fresh</span></li>
   <li><span class="dot rec-na" aria-hidden="true"></span>Not trained</li>
 </ul>
 {%- endmacro %}
@@ -205,6 +203,7 @@
 {# ---------------------------------------------------------------- set row (SetRowView) #}
 {% macro set_row(ws, ev, row, unit) -%}
 {% set entry = ev.entry %}
+{% set wunit = ev.unit or unit %}
 {% set log_url = url_for('workouts.set_log', session_id=ws.id, entry_id=entry.id) %}
 <li class="set-row{% if row.is_done %} is-done{% endif %}{% if row.is_current %} is-current{% endif %}" data-set-row data-set-index="{{ row.set_index }}">
   <form class="set-form" method="post" data-set-form data-rest="{{ ev.rest_seconds }}"
@@ -214,25 +213,25 @@
     <input type="hidden" name="set_index" value="{{ row.set_index }}">
     <span class="set-idx num" aria-hidden="true">{{ row.number }}</span>
     <span class="set-target num"><span class="visually-hidden">Target </span>{{ row.target_text }}</span>
-    <label class="set-cell">
-      <span class="visually-hidden">Set {{ row.number }} weight ({{ unit }})</span>
+    <label class="set-cell set-cell-w">
+      <span class="visually-hidden">Set {{ row.number }} weight ({{ wunit }})</span>
       <input class="set-input num" type="number" name="weight" inputmode="decimal" step="any" min="0" max="2000"
-             value="{{ row.weight_value }}" placeholder="{{ unit }}" autocomplete="off">
+             value="{{ row.weight_value }}" placeholder="{{ wunit }}" autocomplete="off">
     </label>
     {% if row.timed %}
-    <label class="set-cell">
+    <label class="set-cell set-cell-r">
       <span class="visually-hidden">Set {{ row.number }} seconds</span>
       <input class="set-input num" type="number" name="seconds" inputmode="numeric" min="1" max="600"
              value="{{ row.seconds_value }}" placeholder="sec" autocomplete="off">
     </label>
     {% else %}
-    <label class="set-cell">
+    <label class="set-cell set-cell-r">
       <span class="visually-hidden">Set {{ row.number }} reps</span>
       <input class="set-input num" type="number" name="reps" inputmode="numeric" min="0" max="100"
              value="{{ row.reps_value }}" placeholder="reps" autocomplete="off">
     </label>
     {% endif %}
-    <button type="submit" class="set-check" aria-pressed="{{ 'true' if row.is_done else 'false' }}"
+    <button type="submit" class="set-check" data-set-number="{{ row.number }}" aria-pressed="{{ 'true' if row.is_done else 'false' }}"
             aria-label="Complete set {{ row.number }}">{{ icon("check") }}</button>
   </form>
   {% set rated = row.log.rating if row.log else None %}

@@ -32,7 +32,7 @@
       </div>
       <form method="post" action="{{ url_for('workouts.entry_swap_apply', session_id=ws.id, entry_id=entry.id, choice=loop.index0) }}" class="inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-sm">{{ icon("swap", "icon-sm") }}<span>Use this</span></button>
+        <button type="submit" class="btn btn-sm{% if not loop.first %} btn-secondary{% endif %}">{{ icon("swap", "icon-sm") }}<span>Use this</span></button>
       </form>
     </li>
     {% endfor %}

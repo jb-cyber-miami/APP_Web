@@ -1,7 +1,8 @@
 """Week strip, month calendar and weekly streak.
 
-"Gym day" uses the same rule as ``DaySummary.went_to_gym``: a session that was finished, or
-one with logged exercises.
+"Gym day" uses the same rule as ``calories.session_trained`` (``DaySummary.went_to_gym``):
+a session with a legacy entry or a logged set, or a finished session that is empty or has
+calories. A just-started plan (untouched tracked entries) is not a gym day.
 """
 
 from __future__ import annotations
@@ -10,10 +11,10 @@ import calendar
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from sqlalchemy import exists, select
+from sqlalchemy import exists, or_, select
 
 from ..extensions import db
-from ..models import SessionEntry, WorkoutSession
+from ..models import EntryPlan, SessionEntry, SetLog, WorkoutSession
 
 DOW = ("M", "T", "W", "T", "F", "S", "S")
 STREAK_LOOKBACK_DAYS = 3 * 365
@@ -45,15 +46,23 @@ class MonthView:
 def _day_stats(user_id: int, start: date, end: date) -> dict[date, tuple[bool, int | None]]:
     """day -> (is_gym, Σ session kcal or None) for start <= day <= end, in one query."""
     has_entries = exists().where(SessionEntry.session_id == WorkoutSession.id)
+    trained = exists().where(
+        SessionEntry.session_id == WorkoutSession.id,
+        or_(
+            ~exists().where(EntryPlan.entry_id == SessionEntry.id),  # legacy entry
+            exists().where(SetLog.entry_id == SessionEntry.id),  # tracked with a logged set
+        ),
+    )
     rows = db.session.execute(
-        select(WorkoutSession.day, WorkoutSession.ended_at, WorkoutSession.calories, has_entries).where(
-            WorkoutSession.user_id == user_id, WorkoutSession.day >= start, WorkoutSession.day <= end
-        )
+        select(
+            WorkoutSession.day, WorkoutSession.ended_at, WorkoutSession.calories, has_entries, trained
+        ).where(WorkoutSession.user_id == user_id, WorkoutSession.day >= start, WorkoutSession.day <= end)
     ).all()
     out: dict[date, tuple[bool, int | None]] = {}
-    for day, ended_at, kcal, entries in rows:
+    for day, ended_at, kcal, entries, did_train in rows:
         gym, total = out.get(day, (False, None))
-        gym = gym or ended_at is not None or bool(entries)
+        finished = ended_at is not None and (not entries or kcal is not None)
+        gym = gym or bool(did_train) or finished
         if kcal is not None:
             total = (total or 0) + int(kcal)
         out[day] = (gym, total)

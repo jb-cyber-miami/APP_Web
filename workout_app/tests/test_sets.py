@@ -74,6 +74,8 @@ def test_check_set_json(alice):
         "entry_planned": 3,
         "exercises_done": 0,
         "exercises_total": 1,
+        "sets_done": 1,
+        "sets_total": 3,
         "unlogged_sets": 2,
         "rest_seconds": 90,
         "action": f"/sessions/{ws.id}/sets/{log.id}/delete",

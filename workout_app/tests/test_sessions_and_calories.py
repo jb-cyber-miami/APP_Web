@@ -27,7 +27,8 @@ def test_session_flow(alice):
     resp = alice.post(f"/sessions/{ws.id}/finish", follow_redirects=True)
     assert resp.status_code == 200
     assert ws.ended_at is not None
-    assert b"No wearable calories yet" in resp.data
+    assert b"Workout saved." in resp.data
+    assert b"Calories pending" in resp.data and b"Waiting for your watch" in resp.data
 
 
 def test_finish_attributes_wearable_calories(alice):

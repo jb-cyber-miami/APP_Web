@@ -26,8 +26,8 @@
 </ul>
 
 <div class="stat-strip">
-  {{ stat_tile(e1rm|weight(unit) if e1rm is not none else "—", "e1RM") }}
-  {{ stat_tile(best_set or "—", "Best set") }}
+  {{ stat_tile((e1rm|round|int) if e1rm is not none else "—", "e1RM", unit=(unit if e1rm is not none)) }}
+  {{ stat_tile(best_set_short or "—", "Best set", unit=(unit if best_set_short)) }}
   {{ stat_tile(last_day.strftime('%b %-d') if last_day else "—", "Last") }}
 </div>
 
@@ -70,7 +70,7 @@
           <span class="list-row-title">{{ h.day.strftime('%a, %b %-d') }}</span>
           <span class="list-row-meta num">{{ h.sets|join(" · ") }}</span>
         </span>
-        <span class="list-row-trail num">{% if h.e1rm is not none %}<span class="trail-value">{{ h.e1rm|weight(unit) }}</span><span class="eyebrow">e1RM</span>{% endif %}</span>
+        <span class="list-row-trail num">{% if h.e1rm is not none %}<span class="trail-value">{{ (h.e1rm|round|int)|weight(unit) }}</span><span class="eyebrow">e1RM</span>{% endif %}</span>
       </a>
     </li>
     {% endfor %}

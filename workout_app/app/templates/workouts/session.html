@@ -3,7 +3,7 @@
 {% from "_icons.html" import icon %}
 {% from "_ui.html" import page_head, stat_tile, chip, plan_row, body_map, set_row, bar %}
 {% block title %}{{ plan_title or "Workout" }}{% endblock %}
-{% block body_class %}{% if focus_mode %}focus-mode{% else %}summary-page{% endif %}{% endblock %}
+{% block body_class %}{% if focus_mode %}focus-mode has-focus-head{% else %}summary-page{% endif %}{% endblock %}
 {% block scripts %}{% if focus_mode %}<script src="{{ url_for('static', filename='js/workout.js') }}" defer></script>{% endif %}{% endblock %}
 {% block tabbar %}{% if not focus_mode %}{{ super() }}{% endif %}{% endblock %}
 
@@ -17,14 +17,14 @@
     {% if ex and ex.youtube_video_id %}
       <img class="ex-thumb" src="https://i.ytimg.com/vi/{{ ex.youtube_video_id }}/mqdefault.jpg" alt="" loading="lazy" width="56" height="56">
     {% else %}
-      <span class="ex-thumb ex-thumb-empty" aria-hidden="true">{{ icon("muscle") }}</span>
+      <span class="ex-thumb ex-thumb-empty" aria-hidden="true">{{ icon("library") }}</span>
     {% endif %}
     <div class="ex-card-title">
       <h2 class="ex-name">{% if ex %}<a href="{{ url_for('workouts.exercise_detail', exercise_id=ex.id) }}">{{ e.exercise_name }}</a>{% else %}{{ e.exercise_name }}{% endif %}</h2>
       <p class="ex-meta">
         {% if ev.muscles.primary %}{{ chip(ev.muscles.primary|muscle_label) }}{% endif %}
         {% if ev.tracked %}
-          <span class="ex-count num" data-entry-count>{{ ev.done }}/{{ ev.planned }}</span> <span class="muted">sets</span>
+          <span class="ex-count-wrap"><span class="ex-count num" data-entry-count>{{ ev.done }}/{{ ev.planned }}</span> <span class="muted">sets</span></span>
         {% else %}
           <span class="num">{{ e.sets_done }} × {{ e.reps_done or "—" }}{% if e.weight %} @ {{ e.weight }}{% endif %}</span>
         {% endif %}
@@ -33,12 +33,15 @@
     </div>
     {% if focus_mode %}
     <div class="ex-actions">
-      {% if ev.can_swap %}
-      <a class="btn-icon" href="{{ url_for('workouts.entry_swap', session_id=ws.id, entry_id=e.id) }}" aria-label="Swap {{ e.exercise_name }}">{{ icon("swap", "icon-sm") }}</a>
+      {# The swap button is shown on the current card only; the others keep it in the menu so
+         their names get the width (one-line names on a phone). #}
+      {% if ev.can_swap and ev.is_current %}
+      <a class="btn-icon" data-swap href="{{ url_for('workouts.entry_swap', session_id=ws.id, entry_id=e.id) }}" aria-label="Swap {{ e.exercise_name }}">{{ icon("swap", "icon-sm") }}</a>
       {% endif %}
       <details class="menu">
         <summary class="btn-icon" aria-label="More for {{ e.exercise_name }}">{{ icon("more", "icon-sm") }}</summary>
         <div class="menu-body">
+          {% if ev.can_swap %}<a class="menu-item" data-swap href="{{ url_for('workouts.entry_swap', session_id=ws.id, entry_id=e.id) }}">{{ icon("swap", "icon-sm") }}<span>Swap exercise</span></a>{% endif %}
           {% if ex %}<a class="menu-item" href="{{ url_for('workouts.exercise_edit', exercise_id=ex.id) }}">{{ icon("edit", "icon-sm") }}<span>Edit in library</span></a>{% endif %}
           {{ post_button(url_for('workouts.entry_delete', session_id=ws.id, entry_id=e.id), "Remove exercise", "menu-item is-danger", confirm="Remove " ~ e.exercise_name ~ " from this workout?", icon_name="trash") }}
         </div>
@@ -47,27 +50,38 @@
     {% endif %}
   </header>
 
+  {% set collapsible = focus_mode and ev.tracked and ev.rows %}
+  {% if collapsible %}
+  {% set r0 = ev.rows[0] %}
+  <details class="ex-body" data-ex-body{% if ev.is_current or (ev.done and not ev.is_complete) %} open{% endif %}>
+    <summary class="ex-body-sum">
+      <span class="num">{{ ev.planned }} × {% if r0.timed %}{{ r0.target_seconds }}s{% else %}{{ r0.target_reps if r0.target_reps is not none else "—" }}{% endif %}{% if r0.target_weight is not none %} @ {{ r0.target_weight|weight(ev.unit) }}{% endif %}</span>
+      <span class="visually-hidden">Show sets for {{ e.exercise_name }}</span>
+      {{ icon("chevron-down", "icon-sm chev") }}
+    </summary>
+  {% endif %}
   {% if ev.note %}<p class="ex-note">{{ icon("bolt", "icon-xs") }}<span>{{ ev.note }}</span></p>{% endif %}
 
   {% if ev.tracked and ev.rows and not focus_mode %}
+  {% if ev.done == 0 %}
+  <p class="muted t-footnote set-skipped">Skipped</p>
+  {% else %}
   <ol class="set-done-list">
-    {% for row in ev.rows %}
-    <li class="{{ 'is-done' if row.is_done else 'is-skipped' }}">
+    {% for row in ev.rows if row.is_done %}
+    <li class="is-done">
       <span class="set-idx num">{{ row.number }}</span>
-      {% if row.is_done %}
       {% set lg = row.log %}
       <span class="num">{% if lg.seconds is not none and lg.reps is none %}{{ (lg.weight|weight(lg.unit) ~ " × ") if lg.weight is not none }}{{ lg.seconds }}s{% else %}{{ lg.weight|weight(lg.unit) if lg.weight is not none else "BW" }} × {{ lg.reps if lg.reps is not none else 0 }}{% endif %}</span>
       {% if lg.rating %}{{ chip({"easy": "Easy", "ok": "Good", "hard": "Hard"}[lg.rating], "rate-" ~ ("good" if lg.rating == "ok" else lg.rating)) }}{% endif %}
-      {% else %}
-      <span class="muted">Not logged · target {{ row.target_text }}</span>
-      {% endif %}
     </li>
     {% endfor %}
   </ol>
+  {% if ev.done < ev.planned %}<p class="muted t-footnote set-skipped">{{ ev.planned - ev.done }} set{{ "" if ev.planned - ev.done == 1 else "s" }} skipped</p>{% endif %}
+  {% endif %}
   {% elif ev.tracked and ev.rows %}
   <div class="set-table">
     <div class="set-head eyebrow" aria-hidden="true">
-      <span>Set</span><span>Target</span><span>{{ unit }}</span><span>{{ "Sec" if ev.rows[0].timed else "Reps" }}</span><span class="set-head-check">Done</span>
+      <span>Set</span><span>Target</span><span>{{ ev.unit or unit }}</span><span>{{ "Sec" if ev.rows[0].timed else "Reps" }}</span><span class="set-head-check">Done</span>
     </div>
     <ol class="set-list">
       {% for row in ev.rows %}{{ set_row(ws, ev, row, unit) }}{% endfor %}
@@ -92,6 +106,7 @@
     {% if ex and ex.instructions %}<p class="pre t-callout">{{ ex.instructions }}</p>{% endif %}
   </details>
   {% endif %}
+  {% if collapsible %}</details>{% endif %}
 </article>
 {% endmacro %}
 
@@ -131,10 +146,11 @@
     <h1 class="focus-name">{{ plan_title or "Workout" }}</h1>
     <p class="focus-meta">
       <span class="focus-elapsed num" data-elapsed-since="{{ ws.started_at|iso_utc }}">Started {{ ws.started_at|localtime(tz) }}</span>
-      {% if total_ex %}
+      {% set done_sets, total_sets = set_progress %}
+      {% if total_sets %}
       <span class="focus-progress">
-        {{ bar((done_ex * 100 / total_ex)|int, "focus-bar", ' data-progress-bar') }}
-        <span class="num" data-progress aria-live="polite"><span data-progress-done>{{ done_ex }}</span>/<span data-progress-total>{{ total_ex }}</span><span class="visually-hidden"> exercises done</span></span>
+        {{ bar((done_sets * 100 / total_sets)|int, "focus-bar", ' data-progress-bar') }}
+        <span class="num" data-progress aria-live="polite"><span data-progress-done>{{ done_sets }}</span>/<span data-progress-total>{{ total_sets }}</span><span class="visually-hidden"> sets done</span></span>
       </span>
       {% endif %}
     </p>
@@ -190,14 +206,17 @@
   <div class="kcal-head">
     <span class="kcal-icon">{{ icon("flame", "icon-lg") }}</span>
     <div>
-      <p class="t-hero num">{{ ws.calories|num if ws.calories is not none else "—" }}</p>
+      {% if ws.calories is not none %}
+      <p class="t-hero num">{{ ws.calories|num }}</p>
       <p class="eyebrow">Active kcal</p>
+      {% else %}
+      <p class="t-title kcal-pending">Calories pending</p>
+      <p class="t-footnote muted">Waiting for your watch…</p>
+      {% endif %}
     </div>
     {% if ws.calories_source %}
       {{ chip({"apple": "Apple Watch", "oura": "Oura", "manual": "Manual"}.get(ws.calories_source, ws.calories_source),
               "", icon_name={"apple": "watch", "oura": "ring"}.get(ws.calories_source, "edit")) }}
-    {% else %}
-      <span class="t-footnote muted">Waiting for your watch…</span>
     {% endif %}
   </div>
   <div class="stat-strip">
@@ -205,9 +224,9 @@
     {{ stat_tile(summary.volume|num if summary else "—", (summary.unit if summary else unit) ~ " volume") }}
     {{ stat_tile(summary.sets_done if summary else "—", "Sets") }}
   </div>
-  <div class="row-wrap">
-    {{ post_button(url_for('workouts.session_refresh', session_id=ws.id), "Refresh calories", "btn btn-secondary btn-sm", icon_name="sync") }}
-    {% if apple_shortcut_url %}<a class="btn btn-secondary btn-sm" href="{{ apple_shortcut_url }}">{{ icon("watch", "icon-sm") }}<span>Send Apple Watch calories</span></a>{% endif %}
+  <div class="row-wrap kcal-actions">
+    {{ post_button(url_for('workouts.session_refresh', session_id=ws.id), "Refresh", "btn btn-secondary btn-sm", icon_name="sync", aria_label="Refresh calories") }}
+    {% if apple_shortcut_url %}<a class="btn btn-secondary btn-sm" href="{{ apple_shortcut_url }}">{{ icon("watch", "icon-sm") }}<span>Send from Watch</span></a>{% endif %}
   </div>
   <details class="inline-details">
     <summary>{{ icon("edit", "icon-sm") }}<span>Enter calories manually</span>{{ icon("chevron-down", "icon-sm chev") }}</summary>
@@ -220,6 +239,10 @@
   </details>
 </section>
 
+<div class="summary-share">
+  {{ share_button(ws.day, "Share with a friend", "btn btn-lg btn-block") }}
+</div>
+
 {% if summary and summary.prs %}
 <section class="section" aria-labelledby="pr-h">
   <div class="section-head"><h2 class="eyebrow" id="pr-h">Personal records</h2></div>
@@ -231,7 +254,7 @@
         <span class="list-row-title">{% if pr.exercise_id %}<a href="{{ url_for('workouts.exercise_detail', exercise_id=pr.exercise_id) }}">{{ pr.name }}</a>{% else %}{{ pr.name }}{% endif %}</span>
         <span class="list-row-meta num">Best set {{ pr.best_set }}</span>
       </span>
-      <span class="list-row-trail num">e1RM {{ pr.e1rm|weight(summary.unit) }}{% if pr.delta %} <span class="delta-up">+{{ pr.delta|weight(summary.unit) }}</span>{% endif %}</span>
+      <span class="list-row-trail num">e1RM {{ (pr.e1rm|round|int)|weight(summary.unit) }}{% if pr.delta %} <span class="delta-up">+{{ pr.delta|weight(summary.unit) }}</span>{% endif %}</span>
     </li>
     {% endfor %}
   </ul>
@@ -244,7 +267,7 @@
   <div class="card mw-card">
     {{ body_map(targets=summary.muscles_worked, mode="target", mini=True, uid="mw") }}
     <ul class="chip-row chip-row-wrap">
-      {% for m in summary.muscles_worked %}<li>{{ chip(m|muscle_label, "accent") }}</li>{% endfor %}
+      {% for m in summary.muscles_worked %}<li>{{ chip(m|muscle_label) }}</li>{% endfor %}
     </ul>
   </div>
 </section>
@@ -285,7 +308,6 @@
 </section>
 
 <div class="stack-3 summary-actions">
-  {{ share_button(ws.day, "Share with a friend", "btn btn-lg btn-block") }}
   {{ post_button(url_for('workouts.session_delete', session_id=ws.id), "Delete workout", "btn btn-ghost btn-danger-text btn-block", confirm="Delete this workout?", icon_name="trash") }}
 </div>
 {% endif %}

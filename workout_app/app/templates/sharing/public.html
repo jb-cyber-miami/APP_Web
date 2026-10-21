@@ -11,7 +11,7 @@
 <article class="share-page {{ 'went' if s.went_to_gym else 'skipped' }}">
   <p class="eyebrow">{{ s.day.strftime('%A, %B %-d') }}</p>
   <div class="share-title">
-    <span class="icon-tile icon-tile-lg {{ 'icon-tile-accent' if s.went_to_gym else 'icon-tile-muted' }}">{{ icon("muscle" if s.went_to_gym else "moon") }}</span>
+    <span class="icon-tile icon-tile-lg {{ 'icon-tile-accent' if s.went_to_gym else 'icon-tile-muted' }}">{{ icon("library" if s.went_to_gym else "moon") }}</span>
     {% if s.went_to_gym %}
       <h1 class="t-display">{{ owner.display_name }} trained today</h1>
     {% else %}
@@ -24,22 +24,30 @@
     <div class="stat-strip">
       {{ stat_tile(s.session_kcal or "—", "Workout kcal") }}
       {{ stat_tile(active_kcal if active_kcal is not none else "—", "Active kcal (day)") }}
-      {{ stat_tile(s.exercise_names|length, "Exercises") }}
+      {{ stat_tile(s.logged_entries|length, "Exercises") }}
     </div>
   </section>
 
   {% if s.went_to_gym %}
-  <section class="section">
-    <div class="section-head"><h2 class="eyebrow">Exercises</h2></div>
+  {% set logged = s.logged_entries %}
+  {% set rows = logged if logged else s.planned_entries %}
+  {% if rows %}
+  <section class="section{% if not logged %} is-dim{% endif %}">
+    <div class="section-head"><h2 class="eyebrow">{{ "Exercises" if logged else "Planned" }}</h2></div>
     <ul class="card plan-list">
-      {% for ws in s.sessions %}{% for e in ws.entries %}
+      {% for e in rows %}
       <li class="plan-row">
         <span class="plan-row-name">{{ e.exercise_name }}</span>
+        {% if logged %}
         <span class="plan-row-rx num">{{ e.sets_done }} × {{ e.reps_done }}{% if e.weight %} @ {{ e.weight }}{% endif %}</span>
+        {% else %}
+        <span class="plan-row-rx muted">Not logged</span>
+        {% endif %}
       </li>
-      {% endfor %}{% endfor %}
+      {% endfor %}
     </ul>
   </section>
+  {% endif %}
   {% endif %}
 
   <p class="share-foot"><span class="wordmark wordmark-sm"><span class="wordmark-fit">FIT<span class="wordmark-bar" aria-hidden="true"></span></span>LOG</span><span> · shared with you</span></p>

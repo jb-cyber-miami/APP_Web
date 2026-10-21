@@ -372,7 +372,7 @@ def exercise_detail(exercise_id: int):
     exposures = progression.load_history(
         current_user.id, progression.exercise_key(ex.id, ex.name), now=now, days=3650, limit=50
     )
-    e1rm = best_set = last_day = None
+    e1rm = best_set = best_set_short = last_day = None
     values: list[float] = []
     best_val = None
     for exp in reversed(exposures):  # oldest -> newest
@@ -387,6 +387,7 @@ def exercise_detail(exercise_id: int):
                     best_val = sv
                     w = round(progression.from_lb(s.weight_lb, unit), 1)
                     best_set = f"{progression.fmt_weight(w, unit)} × {s.reps}"
+                    best_set_short = f"{sets.num_text(w)}×{s.reps}"  # stat tile; unit in the label
     if exposures:
         latest = exposures[0]
         local = to_local(latest.performed_at, current_user.timezone)
@@ -401,6 +402,7 @@ def exercise_detail(exercise_id: int):
         targets=muscles.all,
         e1rm=e1rm,
         best_set=best_set,
+        best_set_short=best_set_short,
         last_day=last_day,
         spark_points=strength.sparkline_points(values[-SPARK_POINTS:]),
         history_rows=_history_rows(ex, exposures, unit),
@@ -654,7 +656,7 @@ def session_view(session_id: int):
         )
         # A finished workout is being back-filled: everything typed was already done.
         if form.log_all.data or ws.ended_at is not None:
-            _log_all(entry, reps_text, weight_text, prefs.unit_for(current_user.id))
+            _log_all(entry, reps_text, weight_text, entry.plan.unit)
         sets.sync_entry(entry)
         db.session.commit()
         return redirect(url_for("workouts.session_view", session_id=ws.id) + f"#ex-{entry.id}")
@@ -671,6 +673,7 @@ def session_view(session_id: int):
         entries=sets.entry_views(ws, library=library),
         plan_title=linked.title if linked else None,
         progress=sets.progress(ws),
+        set_progress=sets.set_progress(ws),
         unlogged=sets.unlogged_sets(ws),
         unit=unit,
         summary=summary_svc.workout_summary(ws, unit=unit) if ws.ended_at is not None else None,
@@ -736,6 +739,7 @@ def _first_form_error(form) -> str:
 
 def _set_payload(ws: WorkoutSession, entry: SessionEntry, set_index: int, log_row: SetLog | None):
     done, total = sets.progress(ws)
+    sets_done, sets_total = sets.set_progress(ws)
     if log_row is not None:
         action = url_for("workouts.set_delete", session_id=ws.id, set_id=log_row.id)
         rate_action = url_for("workouts.set_rate", session_id=ws.id, set_id=log_row.id)
@@ -753,6 +757,8 @@ def _set_payload(ws: WorkoutSession, entry: SessionEntry, set_index: int, log_ro
             "entry_planned": sets.planned_count(entry),
             "exercises_done": done,
             "exercises_total": total,
+            "sets_done": sets_done,
+            "sets_total": sets_total,
             "unlogged_sets": sets.unlogged_sets(ws),
             "rest_seconds": entry.plan.rest_seconds if entry.plan is not None else 0,
             "action": action,
@@ -797,7 +803,7 @@ def set_log(session_id: int, entry_id: int):
         seconds=seconds,
         weight=weight,
         rating=form.rating.data or None,
-        unit=prefs.unit_for(current_user.id),
+        unit=entry.plan.unit,  # targets and prefilled weights are in the entry's own unit
     )
     db.session.commit()
     if _wants_json():
@@ -947,11 +953,8 @@ def session_finish(session_id: int):
     _sync_and_attribute(ws)
     db.session.commit()
     if ws.calories is None:
-        flash(
-            "Workout saved! No wearable calories yet — they usually arrive a few minutes after "
-            "your watch/ring syncs. Tap “Refresh calories” later or enter them manually.",
-            "info",
-        )
+        # The summary hero already says calories are pending, so the toast stays short.
+        flash("Workout saved.", "success")
     else:
         flash(f"Great work! You burned {ws.calories} active calories this session.", "success")
     return redirect(url_for("workouts.session_view", session_id=ws.id))

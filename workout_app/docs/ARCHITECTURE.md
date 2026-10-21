@@ -62,12 +62,18 @@ YouTube lookup).
    `AIError`, the daily budget (`AIUsage`) or 5 generations today → the fallback plan with a notice.
    `POST /plan/rebuild` is the same without AI.
 3. `POST /plan/start` → `trainer.start_plan`: a `WorkoutSession` with one `SessionEntry` +
-   `EntryPlan` (per-set targets) per planned exercise; unknown exercises are added to the library.
+   `EntryPlan` (per-set targets, converted to the user's unit) per planned exercise; unknown
+   exercises are added to the library. Starting alone is **not** training (see below).
 
 **Set-by-set logging**
 * An entry with an `EntryPlan` is *tracked*. A `SetLog` row exists only for a **completed** set;
   open rows are rendered from the targets. Targets on a `SetLog` are copied server-side from the
-  `EntryPlan`, and the unit comes from `TrainerSettings`, never from the form.
+  `EntryPlan`, never from the form.
+* **One unit per tracked entry.** `EntryPlan.unit` is the unit of its targets, its prefilled weights,
+  the set-row label and every `SetLog` written for it. `start_plan` / `apply_swap` / `attach_targets`
+  convert planned weights to the user's current unit (rounded to plates) when the entry is created,
+  so a plan built in lb and started in kg is stored in kg. Changing the unit mid-workout does not
+  touch open entries; history converts each `SetLog` by its own `unit`.
 * `POST /sessions/<sid>/entries/<eid>/sets` (check), `/sessions/<sid>/sets/<id>/delete` (uncheck),
   `/rate` (Easy/Good/Hard). With `X-Requested-With: fetch` they return JSON for `workout.js`;
   without JS they redirect back to `#ex-<eid>`.
@@ -86,8 +92,12 @@ YouTube lookup).
 **Daily totals** come from *daily* samples (Oura `daily_activity`, Apple daily shortcut).
 They are shown per source, and the headline number prefers Apple.
 
-**Did I go to the gym?** A day counts as "went" if any session on that day was finished or
-has logged exercises. Otherwise history and share pages show "No gym".
+**Did I go to the gym?** One rule, `calories.session_trained` (Python) and its SQL twin in
+`activity._day_stats` (week strip, calendar, streak). A session counts when it has a *legacy*
+entry (no `EntryPlan`) or a tracked entry with at least one `SetLog`, or when it was finished and
+is either empty (a quick "I went") or has calories. A just-started plan, whose entries are all
+untouched, is not a gym day, even after Finish. Otherwise history and share pages show "No gym".
+Share pages and history list only exercises that recorded training (`DaySummary.logged_entries`).
 
 ## Time
 

@@ -1,11 +1,11 @@
 # FitLog design spec: "Athletic Dark"
 
-Status: proposed, v1 (2026-10-21). Owner: product design. Implementers: software engineer (templates, CSS, JS, routes) and AI agent (daily plan, prescriptions, recovery model).
+Status: v1.1 (2026-10-21), aligned with `docs/BUILD_CONTRACT.md` (which wins on any conflict). Owner: product design. Implemented in `app/templates/**` and `app/static/**`; routes by the software engineer, daily plan / prescriptions / recovery by the AI agent.
 
 FitLog is moving to the feel of a modern AI strength coach on iPhone: dark, high-contrast,
-bold numbers, one obvious next action. **Gravl is the reference for feel and feature set
-only.** We do not copy its name, logo, icons, illustrations, wording or screenshots. Every
-icon, colour, label and figure below is original to FitLog.
+bold numbers, one obvious next action. Other AI-trainer apps are a reference for **feel and
+feature set only**. We do not copy any product's name, logo, icons, illustrations, wording or
+screenshots. Every icon, colour, label and figure below is original to FitLog.
 
 Design principles
 
@@ -22,7 +22,7 @@ Design principles
 ### 1.1 Theme strategy
 
 * **Dark is the default.** `<html data-theme="dark">` is rendered server-side.
-* **Light variant.** Applied with `data-theme="light"`. `data-theme="system"` follows `prefers-color-scheme`. In phase 2 the choice is stored in a new `user_pref` table (see section 9). Until then everyone gets dark.
+* **Light variant.** The light tokens exist in CSS under `[data-theme="light"]`, but iteration 1 always renders dark. A theme toggle (and storing the choice) is **phase 2** (contract 0.2).
 * `<meta name="theme-color" content="#0A0A0B">`, and `manifest.webmanifest` `background_color` / `theme_color` are set to `#0A0A0B`.
 * `color-scheme: dark` on `[data-theme=dark]` and `light` on `[data-theme=light]`, so native controls (date pickers, scrollbars) match.
 
@@ -44,6 +44,7 @@ All colours are CSS custom properties on `:root[data-theme=…]` in `app/static/
 | `--on-accent` | `#0A0A0B` | `#0A0A0B` | Text/icons on accent fills (17:1) |
 | `--accent-ink` | `#D4FF3A` | `#3F6212` | Accent used **as text or icon** (active tab, links). Light needs a dark ink for AA |
 | `--accent-soft` | `rgba(212,255,58,.14)` | `rgba(132,204,22,.16)` | Selected chip background, hero glow |
+| `--accent-line` | `#D4FF3A` | `#4D7C0F` | Accent as a **line, stroke or small mark** on a surface: current card/set border, check ring, ring/bar/spark fills, today rings, "muscles worked". Light needs ≥ 3:1 (WCAG 1.4.11) |
 | `--ai` | `#A78BFA` | `#6D28D9` | AI badge, AI builder button |
 | `--ai-soft` | `rgba(167,139,250,.16)` | `rgba(109,40,217,.10)` | AI chip background |
 | `--ok` | `#3DDC84` | `#15803D` | Connected, PR, "went to gym" |
@@ -149,7 +150,7 @@ Required icon set (names are macro keys):
 
 ### 1.6 Brand mark
 
-The wordmark is "FITLOG" in uppercase, `font-display` 900 italic, -0.02em, with a volt underline bar (4px, `--r-pill`) under "FIT". It is pure CSS/HTML (`.wordmark`, `.wordmark-bar`), so no image is needed. The existing `icon.svg` / PNG app icons are recoloured to a volt bolt on `#0A0A0B` (an asset update, optional in phase 1).
+The wordmark is "FITLOG" in uppercase, `font-display` 900 italic, -0.02em, with a volt underline bar (4px, `--r-pill`) under "FIT". It is pure CSS/HTML (`.wordmark`, `.wordmark-bar`), so no image is needed. The app icon (`static/icons/icon.svg` and the 180/192/512 PNGs) is an original volt bolt on `#0A0A0B`, echoing the Today tab glyph. The PNGs are full-bleed (the OS applies its own mask) and are marked `any maskable` in the manifest.
 
 ---
 
@@ -239,29 +240,31 @@ ASCII wireframes are at 390px width. `[ ]` is a button, `( )` is a check, `‹ �
 │ ┌────────── HERO ──────────┐ │  .card.card-hero
 │ │ TODAY'S WORKOUT   ‹✦ AI› │ │  eyebrow + .chip-ai
 │ │ Push · Upper Strength    │ │  .t-display (title)
-│ │ ‹Chest› ‹Shoulders› ‹Tri›│ │  .chip-row (muscle focus)
+│ │ Chest: 100% recovered, … │ │  .hero-sub rationale, 2 lines max (line-clamp)
+│ │ ‹Chest› ‹Shoulders› ‹Tri›│ │  .chip-row.chip-row-wrap (focus, max 4)
 │ │ ┌──────┬──────┬───────┐  │ │  .stat-strip (3 inline stats)
 │ │ │ 50   │  6   │ 18    │  │ │
 │ │ │ MIN  │ EXER │ SETS  │  │ │
 │ │ └──────┴──────┴───────┘  │ │
-│ │ Bench Press   4 × 6 @ 155│ │  .plan-preview (first 3)
+│ │ [ ▶  Start workout     ] │ │  .hero-cta right after the stats: above the
+│ │                          │ │  fold (≈ y 500 on a 390 × 664 viewport)
+│ │ Bench Press   4 × 6 @ 155│ │  .plan-list preview (first 3)
 │ │ Incline DB    3 × 10 @ 50│ │
 │ │ Cable Fly     3 × 12 @ 30│ │
 │ │ + 3 more                 │ │
-│ │ [ ▶  Start workout     ] │ │  .btn .btn-lg .btn-block
-│ │  Shuffle plan · Build new│ │  .btn-ghost.btn-sm x2
+│ │ ▸ Change today's plan    │ │  <details class="hero-more">
+│ │   Start empty workout    │ │  .btn-ghost
 │ └──────────────────────────┘ │
 │                              │
 │ RECOVERY              Info › │  .section-head
 │ ┌──────────────────────────┐ │  .card
 │ │  [front fig] [back fig]  │ │  .body-map (section 5)
-│ │  ● Fresh ● Recovering    │ │  .bm-legend
-│ │  ● Fatigued              │ │
+│ │ Fatigued ▮▮▮▮▮ Fresh  ○ NT│ │  .bm-legend: 5-step scale rec-0…rec-4 + Not trained
 │ │ Fresh: legs, back, core  │ │  .t-callout, text summary
 │ │ Recovering: chest 45%    │ │
 │ └──────────────────────────┘ │
 │                              │
-│ THIS WEEK          3-wk ▮ 🔥│  streak pill (.chip-accent + flame icon)
+│ THIS WEEK       ‹3-week streak›│  streak pill (.chip-accent + flame icon)
 │ ┌──────────────────────────┐ │
 │ │ M  T  W  T  F  S  S      │ │  .week-strip
 │ │ ●  ●  ◎  ○  ○  ○  ○      │ │  ● gym  ◎ today  ○ future
@@ -285,11 +288,12 @@ ASCII wireframes are at 390px width. `[ ]` is a button, `( )` is a check, `‹ �
 
 | State | Eyebrow / title | Primary action |
 |---|---|---|
-| A. Plan ready (AI or template) | TODAY'S WORKOUT / plan title | **Start workout** (POST `session_start` + plan id) |
-| B. No plan yet | TODAY'S WORKOUT / "Ready when you are" + "Your coach picks muscles that are recovered" | **Build today's workout** (POST to the AI daily plan; `data-busy="Planning your session…"`); secondary "Start empty workout" ghost |
-| C. In progress | IN PROGRESS / plan title + elapsed + "3 of 6 exercises" `.bar` | **Continue workout** |
-| D. Done today | DONE TODAY / "Great work" + kcal + volume | **View summary**; ghost "Start another" |
-| E. Rest suggested (everything < 40% recovered) | REST DAY / "Your muscles need another day" + `moon` icon | **Start anyway** (secondary styling); ghost "Mobility session" (optional) |
+| `plan` (AI or coach fallback) | TODAY'S WORKOUT / plan title | **Start workout** (POST `plan_start`). A `<details>` "Change today's plan" holds `plan_form` with **Build with AI coach** (`formaction=plan_generate`, only when AI is on, `data-busy="Planning your session…"`) and **Rebuild without AI** (`plan_rebuild`). Ghost "Start empty workout" (`session_start`) |
+| `active` | IN PROGRESS / plan title + elapsed + "3 of 6 exercises" `.bar` | **Continue workout** |
+| `done` | DONE TODAY / "Great work" + minutes + kcal | **View summary**; ghost "Start another" (`session_start`) |
+| `rest` (`plan.kind == "recovery"`) | REST DAY / "Your muscles need another day" + `moon` icon | **Start anyway** (`plan_start`, secondary styling) |
+
+There is no "no plan yet" state: `GET /` always yields a plan (an unsaved coach fallback when nothing is stored), and `GET /` never calls the AI. State rules are in contract 4.2.
 
 * The muscle-focus chips use the recovery colour dot of each muscle (`.chip .dot.rec-3`) so the hero explains *why* these muscles were picked.
 * Plan preview rows are `.plan-row` items: name, then `sets × reps @ weight` right-aligned in `.num`.
@@ -302,7 +306,7 @@ ASCII wireframes are at 390px width. `[ ]` is a button, `( )` is a check, `‹ �
 ```
 ┌──────────────────────────────┐
 │ (×)   Push · Upper    [Finish]│ .focus-head (sticky, blurred bg)
-│       24:13 ▮▮▮▮▯▯ 2/6       │ elapsed .num + .bar (exercises done)
+│       24:13 ▮▮▯▯▯▯ 5/18      │ elapsed .num + .bar (SETS done / planned)
 ├──────────────────────────────┤
 │ ┌──────────────────────────┐ │ .ex-card.is-current
 │ │[thumb] Bench Press   (▶)(⇄)(⋯)│ .ex-card-head: thumb 56px, icons 44px
@@ -321,8 +325,9 @@ ASCII wireframes are at 390px width. `[ ]` is a button, `( )` is a check, `‹ �
 │ │ [+ Add set]   Rest 2:00 ⏱│ │ .btn-ghost + rest setting
 │ │ ▸ How to (video + notes)  │ │ <details class="ex-howto"> with video macro
 │ └──────────────────────────┘ │
-│ ┌──────────────────────────┐ │ .ex-card (collapsed, <details>)
-│ │ Incline DB Press   0/3  › │ │ name + sets done + "3 × 10 @ 50"
+│ ┌──────────────────────────┐ │ .ex-card; body in <details class="ex-body">
+│ │ Incline DB Press   0/3 sets│ │ name + sets done; open only when current
+│ │ 3 × 10 @ 50 lb          ⌄ │ │ summary.ex-body-sum (hidden when open)
 │ └──────────────────────────┘ │
 │ ...                          │
 │ [ + Add exercise ]           │ .btn-secondary .btn-block → sheet
@@ -337,12 +342,14 @@ ASCII wireframes are at 390px width. `[ ]` is a button, `( )` is a check, `‹ �
   * ✓ is a 44px round button: an outline circle that becomes a volt fill with a `check` icon and `--on-accent` colour. It sets `aria-pressed` and `aria-label="Complete set 2"`.
   * Done row: `.is-done` dims the target text and the row background becomes `--surface-2`.
   * The current row (first not done) gets `.is-current` with a 3px volt inset bar on the left.
-* **Each set row is a `<form method="post">`** with CSRF (`/sessions/<id>/sets/<set_id>`). Progressive enhancement: `app.js` intercepts submit (`data-set-form`), `fetch`es same-origin with the `X-CSRFToken` header and swaps the row state. Without JS it is a normal POST and redirect to `#ex-<entry_id>`.
-* **Easy / Good / Hard** (`.rate`, a radio-chip group) appears inside the row after it is checked. It is optional, and the selection is sent with the next submit or by its own small POST. Selected chip colours: Easy uses `--ok`, Good uses `--surface-3`, Hard uses `--warn` (text on `-soft` backgrounds). Labels always include the word, not only colour.
+* **Each set row is a `<form method="post">`** with CSRF. A `SetLog` row exists only for a completed set: checking posts `set_index` to `POST /sessions/<sid>/entries/<eid>/sets`; un-checking posts to `POST /sessions/<sid>/sets/<set_id>/delete`. Targets come from the entry's `EntryPlan`, and the unit is the entry's own `EntryPlan.unit` (never from the form; the weight column is labelled with it). Progressive enhancement: `workout.js` intercepts submit (`data-set-form`), `fetch`es same-origin with `X-Requested-With: fetch`, applies the JSON (contract 4.1) and swaps the row state and the form's `action`. Without JS (or on a non-JSON reply) it is a normal POST and redirect to `#ex-<entry_id>`.
+* **Easy / Good / Hard** (`.rate`, a radio-chip group in its own small form, `POST /sessions/<sid>/sets/<set_id>/rate`) appears inside the row after it is checked. Stored values are `easy` / `ok` / `hard`; `ok` is labelled **Good** (class `.rate-good`). With JS a radio change saves immediately; without JS a visible "Save" button submits it. Selected chip colours: Easy uses `--ok`, Good uses `--surface-3`, Hard uses `--warn` (text on `-soft` backgrounds). Labels always include the word, not only colour.
 * **Rest timer** (`.rest-timer`) starts automatically when a set is checked, using the exercise's `rest_seconds` (`data-rest="120"`). It is a fixed bottom bar, 76px plus the safe area, containing: an SVG ring (stroke-dashoffset updated by JS via `setAttribute`), the remaining time as `.t-title .num`, "REST" as an eyebrow, and `−15` / `+15` / `Skip` buttons at 44px. At 0 it shows "Go — set 3" in volt, calls `navigator.vibrate(200)` where supported, and collapses after 3s. It updates an `aria-live="polite"` region only at 30s, 10s and 0 (not every second). Without JS the bar is not rendered (`hidden` until JS removes it).
-* **Swap** (`swap` icon) links to GET `/sessions/<id>/entries/<eid>/swap`. That page (or `<dialog class="sheet">` when JS is on) lists library exercises for the same canonical muscle first, then the rest, and each is a POST button. Done sets are kept; remaining targets are recalculated.
+* **Collapsed cards.** In focus mode a tracked card's note, set table, Add set row and How to sit in `<details class="ex-body">`, open server-side only for the current card (or one with some sets done). When the last set of an exercise is checked, `workout.js` opens the next card and scrolls it into view (no smooth scroll under reduced motion). Without JS the redirect to `#ex-<id>` still lands on open rows.
+* **Swap** (`swap` icon, current card only; other cards offer "Swap exercise" in the ⋯ menu so their names keep one line) links to the page `swap.html` (`GET /sessions/<sid>/entries/<eid>/swap`). It is offered **only while the entry has no logged sets** (JS hides the icon once a set is checked). The page lists up to 3 options (coach fallback, or AI when asked with a reason), each a POST "Use this" button to `…/swap/<choice>`, plus a reason form to ask for new options. Plan-level swaps are phase 2.
 * **Video** (`video` icon) toggles the `<details class="ex-howto">` holding the existing `video()` macro (youtube-nocookie, sandboxed, lazy) and instructions. If there is no video id, it shows the existing "Find a how-to video on YouTube" link.
-* **More** (`⋯`): Remove exercise (POST `entry_delete`), Edit exercise in library.
+* **More** (`⋯`): Swap exercise (non-current cards, while no set is logged), Remove exercise (POST `entry_delete`), Edit exercise in library.
+* **Thumbnails**: a YouTube thumbnail that fails to load is replaced by `app.js` with the empty dumbbell tile (`.ex-thumb-empty`); no inline `onerror`.
 * **Add exercise**: the existing `EntryForm` (select + sets/reps/weight) inside a sheet or `<details>`. It creates the entry and its set rows.
 * **Finish** (header, volt `.btn-sm`) does a POST to `session_finish` with `data-confirm="2 sets not logged. Finish anyway?"`. The confirm text is generated only when sets remain.
 * **(×)** returns to Today and does **not** end the session (the Now bar appears).
@@ -362,9 +369,10 @@ ASCII wireframes are at 390px width. `[ ]` is a button, `( )` is a check, `‹ �
 │ │ │ 56   │ 9,840│  18   │  │ │
 │ │ │ MIN  │ LB VOL│ SETS │  │ │
 │ │ └──────┴──────┴───────┘  │ │
-│ │ [↻ Refresh] [⌚ Send Apple]│ │ .btn-secondary .btn-sm (existing routes)
+│ │ [↻ Refresh][⌚ Send from Watch]│ .kcal-actions: two equal-width buttons
 │ │ ▸ Enter calories manually │ │ <details> existing ManualCaloriesForm
 │ └──────────────────────────┘ │
+│ [ ⤴ Share with a friend ]    │ .btn .btn-lg .btn-block (volt), the one action
 │ PERSONAL RECORDS             │
 │ 🏆 Bench Press  e1RM 192 (+7)│ .pr-row (trophy icon --ok)
 │ MUSCLES WORKED               │
@@ -373,12 +381,12 @@ ASCII wireframes are at 390px width. `[ ]` is a button, `( )` is a check, `‹ �
 │ Easy 6 · Good 9 · Hard 3     │ .rate-summary (3 bars)
 │ NEXT TIME                    │
 │ Bench 4 × 6 @ 160  ▲ +5      │ .plan-row with .delta-up
-│ EXERCISES                    │ list of entries + sets (read-only)
-│ [ ⤴ Share with a friend ]    │ .btn .btn-lg .btn-block (volt)
+│ EXERCISES                    │ entries + DONE sets only; untouched → "Skipped"
+│ Delete workout               │ .btn-ghost danger
 └──────────────────────────────┘
 ```
 
-* Calories source label: "Apple Watch" / "Oura" / "Manual", shown as a chip with the `watch` / `ring` / `edit` icon. "—" plus the hint "Waiting for your watch…" when null.
+* Calories source label: "Apple Watch" / "Oura" / "Manual", shown as a chip with the `watch` / `ring` / `edit` icon. When null the hero shows "Calories pending" (`.t-title`, `--text-2`) and "Waiting for your watch…" instead of a big dash, and the finish toast is just "Workout saved.".
 * Volume is the sum of weight × reps over done sets, shown in the user's unit.
 * PRs come from new e1RM records (Epley: `w × (1 + reps/30)`, reps ≤ 12). If there are none, the section is hidden.
 
@@ -460,9 +468,8 @@ ANYTHING ELSE?
 │ │   ╭───────╮              │ │ .ring (160px) value 0–100
 │ │   │  64   │  STRENGTH    │ │ .t-hero inside ring
 │ │   │       │  INDEX       │ │
-│ │   ╰───────╯  Intermediate│ │ level label
+│ │   ╰───────╯  100 = you   │ │ self-relative, no level labels
 │ │  ▲ +3 in 4 weeks         │ │ .delta-up
-│ │  ~~~~~~~~ sparkline ~~~~ │ │ SVG polyline, volt stroke
 │ └──────────────────────────┘ │
 │ BY MUSCLE                    │
 │ Chest      ▮▮▮▮▮▮▮▯▯▯  68  │ .meter-row (label, .bar, value)
@@ -481,11 +488,11 @@ ANYTHING ELSE?
 └──────────────────────────────┘
 ```
 
-* **Strength Index** (FitLog's own name; avoid other apps' terms) is 0–100. Per muscle it is the best recent e1RM / bodyweight against a simple standards table, mapped to 0–100. The overall index is the mean of the trained groups. Level labels: 0–19 Starter, 20–39 Novice, 40–59 Intermediate, 60–79 Advanced, 80–100 Elite. If no bodyweight is set, show e1RMs only plus a card: "Add your bodyweight to see your Strength Index" → Profile.
-* **Calendar day cell** (`.cal-day`) is a 44px square link to the day view (anchor in history or `?day=`):
+* **Strength Index** (FitLog's own name; avoid other apps' terms) is **self-relative**: 100 is your own baseline for each lift (AI_COACH §5), the overall index is the mean of the trained groups, and there are **no level labels** and no bodyweight standards. The ring and the per-muscle bars fill with `index_pct = clamp(round(index × 2 / 3), 0, 100)`, so a baseline of 100 fills about two thirds and 150+ fills the ring. Muscles with no data show "—". The index-over-time sparkline is phase 2 (the e1RM sparkline on exercise detail stays).
+* **Calendar day cell** (`.cal-day`) is a square link to the single-day view `history?day=YYYY-MM-DD`; `?month=YYYY-MM` on Progress pages the calendar:
   * `.is-gym` uses a volt fill and `--on-accent` number.
   * `.is-rest` (past, no gym) has a `--line` outline and `--text-3` number, plus a small `moon` dot when explicitly shared as a no-gym day.
-  * `.is-today` gets a 2px `--accent` ring.
+  * `.is-today` gets a 2px `--accent-line` ring.
   * `.is-future` is `--text-3` and not a link.
   * Each cell's `aria-label` reads e.g. "Oct 14, gym day, 312 kcal".
 * **History ("All days")** reuses the existing 14-day list restyled. Each day is a `.card` with a date `.t-headline`, a status chip ("Gym" `--ok` with `check` icon, or "No gym" `--danger` with `moon` icon; text always present), the `_day_card` stat strip, exercise names, "View session" rows and **Share this day** (`.btn-secondary .btn-sm`, `share` icon).
@@ -525,7 +532,7 @@ Profile                              .t-display
 └───────────────────────────────┘
 TRAINING                              .list-group with rows (chevron)
   (gym) My gym              Commercial ›
-  (⚖)  Units & bodyweight   lb · 180  ›   (phase 2, user_pref)
+  (⚖)  Units & session length  lb · 45 min ˅  <details> TrainerSettingsForm
 DEVICES
   (watch) Apple Health      ● Active  ›   → integrations.index
   (ring)  Oura              ● Off     ›
@@ -550,7 +557,7 @@ There is no tab bar and no account chrome. It is designed to look good as a scre
 ```
 ┌──────────────────────────────┐
 │ TUESDAY, OCTOBER 21          │ eyebrow
-│ (muscle) Jonas trained today │ .t-display; icon tile --accent
+│ (dumbbell) Jonas trained today│ .t-display; icon tile --accent
 │ ┌──────────────────────────┐ │ .card.card-hero
 │ │ 312   │ 640   │ 6        │ │ .stat-strip
 │ │WORKOUT│ ACTIVE│ EXERCISES│ │
@@ -563,6 +570,7 @@ There is no tab bar and no account chrome. It is designed to look good as a scre
 └──────────────────────────────┘
 ```
 
+* Only exercises that recorded training are counted and listed (`DaySummary.logged_entries`). If a day counts as a gym day but nothing was logged (finished with calories), the planned rows are shown dimmed under a "Planned" eyebrow.
 * No-gym variant: `moon` icon tile in `--surface-3`, title "Jonas didn't go to the gym", subline "Rest day or skipped — give them a nudge!", and stats shown dimmed. The page still shows only the existing permitted fields (B7 in SECURITY.md). **Do not add** the recovery map, strength index or other days here.
 * `share/created.html`: a big copy row plus a primary "Send to a friend" (`data-share-url`, `share` icon) and a hint with the expiry date.
 * `share/manage.html`: a `.list-group` of links with a "Revoke" `.btn-ghost` danger action.
@@ -604,7 +612,7 @@ The existing class names `.btn`, `.btn-secondary`, `.btn-danger`, `.btn-ai`, `.b
 | Calendar | `.cal`, `.cal-head`, `.cal-grid`, `.cal-dow`, `.cal-day`, `.is-gym`, `.is-rest`, `.is-today`, `.is-future`, `.cal-legend` | |
 | Stepper | `.stepper`, `.stepper-btn` | `data-stepper`; number input still works without JS |
 | Search | `.search` | `data-filter="#exercise-list"`; filters `[data-name]` rows |
-| Sheet | `dialog.sheet`, `.sheet-handle`, `.sheet-body` | Native `<dialog>`, opened by `data-sheet-open="#id"`; falls back to a normal link/page |
+| Sheet | `dialog.sheet`, `.sheet-handle`, `.sheet-body` | Optional (phase 2). Native `<dialog>`, opened by `data-sheet-open="#id"`; every sheet must also work as `<details>` or a page |
 | Toast | `.toast`, `.toast-success`, `.toast-error`, `.toast-info` | Replaces `.flash` visuals |
 | Empty state | `.empty-state`, `.empty-state-icon` | |
 | Skeleton | `.skeleton`, `.skeleton-line` | Shimmer disabled for reduced motion |
@@ -691,28 +699,28 @@ Starter markup (front figure; the back mirrors it with the substitutions listed 
 
 ### 5.3 Colour scale
 
-The server computes `recovery[group]` as an int 0–100, or `None` when the group was never trained or there is no data in the last 14 days. It maps to a class:
+The server computes recovery per group with the AI_COACH §3.3 formula (0–100). A muscle not trained in the lookback is 100 / Fresh but coloured `rec-na`. `recovery.rec_class` maps it to a class, with buckets cut so the colour never contradicts the status word (Fresh ≥ 85, Recovering 50–84, Fatigued < 50):
 
 | Class | Recovered | Label (text) | Dark | Light |
 |---|---|---|---|---|
-| `.rec-0` | 0–19% | Fatigued | `--rec-0: #FF4D5E` | `#E11D48` |
-| `.rec-1` | 20–39% | Fatigued | `--rec-1: #FF8A3D` | `#EA580C` |
-| `.rec-2` | 40–59% | Recovering | `--rec-2: #FFC23D` | `#CA8A04` |
-| `.rec-3` | 60–79% | Recovering | `--rec-3: #9BE36D` | `#65A30D` |
-| `.rec-4` | 80–100% | Fresh | `--rec-4: #3DDC84` | `#15803D` |
-| `.rec-na` | no data | Fresh (untrained) | `--rec-na: #2E2E34` | `#D9D9D3` |
+| `.rec-0` | < 25% | Fatigued | `--rec-0: #FF4D5E` | `#E11D48` |
+| `.rec-1` | 25–49% | Fatigued | `--rec-1: #FF8A3D` | `#EA580C` |
+| `.rec-2` | 50–69% | Recovering | `--rec-2: #FFC23D` | `#CA8A04` |
+| `.rec-3` | 70–84% | Recovering | `--rec-3: #9BE36D` | `#65A30D` |
+| `.rec-4` | ≥ 85% | Fresh | `--rec-4: #3DDC84` | `#15803D` |
+| `.rec-na` | not trained recently | Fresh, not trained recently | `--rec-na: #2E2E34` | `#D9D9D3` |
 
 ```css
 .mm { fill: var(--rec-na); stroke: var(--bg); stroke-width: 1.5; transition: fill var(--dur-3) var(--ease); }
 .mm.rec-0 { fill: var(--rec-0); } /* … through .rec-4 */
 .bm-body { fill: var(--surface-3); }
 .body-map.is-target .mm { fill: var(--surface-3); }
-.body-map.is-target .mm.is-target { fill: var(--accent); }   /* exercise detail & summary: "muscles worked" */
+.body-map.is-target .mm.is-target { fill: var(--accent-line); }   /* exercise detail & summary: "muscles worked" */
 ```
 
-* Mapping: `cls = "rec-na" if v is None else f"rec-{min(4, v // 20)}"`, computed in Python. A single `rec_class` Jinja filter is enough.
-* **Colour is never the only signal.** The card under the map lists groups by label: "Fresh: back, legs, core · Recovering: chest 45%, triceps 58% · Fatigued: shoulders 15%". The `<desc>` carries the full list for screen readers. The legend uses dots plus words.
-* Recovery model (owned by the AI agent / engineer; stated here so the UI is coherent): `pct = min(100, round(100 * hours_since_last_trained / window))`, where `window` is 48h for low volume (≤ 6 hard sets for that group), 72h for medium and 96h for high volume or "Hard" ratings. The most recent session wins; secondary muscles count half the sets.
+* Mapping is computed in Python (`RecoveryView.rec`); templates only ever emit classes from this fixed list.
+* **Colour is never the only signal.** The card under the map lists groups by label: "Fresh: back, legs, core · Recovering: chest 45%, triceps 58% · Fatigued: shoulders 15%". The `<desc>` carries the full list for screen readers. The legend is a 5-step scale (`.bm-scale`, Fatigued → Fresh, every `.rec-*` colour the map can paint) plus "Not trained", and in the Fatigued / Recovering lists each muscle carries a dot in its own `.rec-*` colour, so a light-green 74% Quads matches its dot.
+* Recovery model: the dose-based formula in AI_COACH §3.3 (7-day lookback, "Hard" ratings and secondary muscles weighted there), implemented in `services/recovery.py`. The UI only consumes `RecoveryPanel`.
 
 ---
 
@@ -732,11 +740,12 @@ The server computes `recovery[group]` as an int 0–100, or `None` when the grou
 
 ---
 
-## 7. Interaction & JS (all in `app/static/js/app.js`, delegated listeners, no inline handlers)
+## 7. Interaction & JS (`app/static/js/app.js` on every page, `app/static/js/workout.js` on the active workout only; delegated listeners, no inline handlers)
 
 | Hook | Behaviour | No-JS fallback |
 |---|---|---|
-| `data-set-form` | fetch POST with `X-CSRFToken` (read from the form's hidden `csrf_token`); swap row classes; start rest timer | Full POST + redirect to `#ex-<id>` |
+| `data-set-form` (`workout.js`) | fetch POST with `X-Requested-With: fetch` (CSRF token in the form body); apply the JSON: row classes, `aria-pressed`, `form.action`, rating form action, progress counters, Finish confirm text, `.is-current`; start the rest timer with `rest_seconds` | Full POST + redirect to `#ex-<id>` |
+| `data-rate-form` (`workout.js`) | Radio change saves by fetch; the "Save" button is hidden by the `.js` class | Radios + visible Save button |
 | `data-rest="seconds"` | Rest timer bar: −15 / +15 / Skip, vibrate at 0 | Timer hidden |
 | `data-elapsed-since="ISO"` | Ticks elapsed mm:ss / h:mm:ss every second | Shows start time text |
 | `data-stepper` | ± buttons adjust the number input within min/max | Plain number input |
@@ -765,19 +774,11 @@ Do not add any new external host. YouTube thumbnails (`i.ytimg.com`) and the noc
 
 ---
 
-## 9. Data the screens need (handoff to engineer and AI agent)
+## 9. Data the screens need
 
-Proposed **new tables** (no new columns on existing tables, so an existing dev DB keeps working). All have `user_id` (directly or via a parent) and are loaded through `owned_or_404`. The engineer owns the final schema.
+The binding data model is BUILD_CONTRACT section 1 (new tables only): `TrainerSettings` (unit, default minutes; there is **no** `user_pref`, bodyweight, theme or weekly-goal storage in iteration 1), `ExerciseMuscles`, `EntryPlan` (per-entry targets, rest, progression note, swap options), `SetLog` (one row per completed set; rating `easy`/`ok`/`hard`), `DailyPlan` and `AIUsage`. Templates receive the view objects listed in contract 4.2 (`HeroView`, `RecoveryPanel`, `EntryView`/`SetRowView`, `WorkoutSummary`, `StrengthReport`/`StrengthRow`, `MonthView`/`DayCell`, `HistoryRow`).
 
-| Table | Fields (sketch) | Feeds |
-|---|---|---|
-| `set_log` | `id, entry_id → session_entry, set_index, target_weight, target_reps, weight, reps, unit, done, rating (easy/good/hard/null), completed_at` | Active workout rows, volume, PRs, e1RM, prescriptions |
-| `daily_plan` | `id, user_id, day, title, focus_json (canonical groups), est_minutes, items_json (exercise_id/name, sets, reps, weight), source (ai/rule), status (ready/started/done), session_id` | Today hero states A–E, "Next time" |
-| `user_pref` | `user_id (unique), unit ('lb' default), bodyweight, theme ('dark'), weekly_goal (3)` | Units, Strength Index, theme, streak |
-
-Derived (services, not stored): `recovery_by_muscle(user, now)`, `e1rm_history(exercise)`, `strength_index(user)`, `streak_weeks(user)`, `month_calendar(user, month)`.
-
-Prescription rule (the AI agent may refine it, but the UI assumes it): next target comes from the last session's top set. All sets "Easy" means +5 lb (upper) / +10 lb (lower), or +2.5/5 kg. A mix means keep the weight and add 1 rep up to the top of the range, then add weight and reset reps. Any "Hard" or a missed rep means keep the weight and reps. Two sessions in a row with misses means −10%.
+Prescriptions follow the AI_COACH §4.5 rule table; the UI shows the result as targets, a progression note and "Next time" deltas.
 
 The AI daily plan prompt receives only: recovery %, last 14 days of trained groups, neglected groups (not trained ≥ 7 days), gym equipment and goal. Output is validated by pydantic (exercise names ≤ 80 chars, sets 1–10, reps 1–30, weight ≥ 0 numeric) and rendered autoescaped.
 
@@ -785,12 +786,9 @@ The AI daily plan prompt receives only: recovery %, last 14 days of trained grou
 
 ## 10. Rollout order (suggested)
 
-1. Tokens, base typography, `icon()` macro, buttons/cards/chips, tab bar (4 tabs) and toasts across all existing templates. No data changes; all 71 tests should stay green.
-2. Today hero (states B/C/D using existing data), week strip, calories stat strip, Now bar.
-3. `set_log`, active-workout focus mode, rest timer and summary.
-4. Recovery service and body map, then the AI daily plan (states A/E).
-5. Progress (calendar first, then Strength Index once `user_pref.bodyweight` exists), exercise detail.
-6. Light theme toggle in Profile.
+Iteration 1 (done): tokens, typography, icons, 4-tab bar, toasts, Now bar; Today hero (`plan` / `active` / `done` / `rest`), recovery body map, week strip; focus-mode workout with set check-off, ratings, rest timer and swap page; summary; Library and exercise detail; Progress (Strength Index ring, by-muscle bars, top lifts, calendar); Devices; Profile; share pages.
+
+Phase 2: light theme toggle, bodyweight-based standards, index sparkline on Progress, interactive body map, plan-level swaps, `<dialog>` sheets.
 
 ## 11. Do / don't
 
