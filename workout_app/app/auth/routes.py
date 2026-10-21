@@ -11,18 +11,26 @@ from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from ..extensions import db, limiter, oauth
-from ..forms import ChangePasswordForm, LoginForm, RegisterForm, SettingsForm
+from ..forms import ChangePasswordForm, LoginForm, RegisterForm, SettingsForm, TrainerSettingsForm
 from ..models import (
+    AIUsage,
     ApiToken,
+    DailyPlan,
+    EntryPlan,
     Exercise,
+    ExerciseMuscles,
     GymProfile,
     HealthSample,
     Integration,
+    SetLog,
     ShareLink,
+    TrainerSettings,
     User,
     WorkoutSession,
+    utcnow,
 )
 from ..security import safe_next_url
+from ..services import prefs
 
 bp = Blueprint("auth", __name__)
 log = logging.getLogger(__name__)
@@ -170,6 +178,24 @@ def _unique_username(email: str) -> str:
 # ---------------------------------------------------------------------------
 # Settings
 # ---------------------------------------------------------------------------
+def _settings_context() -> dict:
+    uid = current_user.id
+    tokens = ApiToken.query.filter_by(user_id=uid).all()
+    used = [t.last_used_at for t in tokens if t.last_used_at is not None]
+    return {
+        "trainer_form": TrainerSettingsForm(
+            formdata=None, unit=prefs.unit_for(uid), default_minutes=prefs.default_minutes_for(uid)
+        ),
+        "gym": GymProfile.query.filter_by(user_id=uid).first(),
+        "apple_tokens": len(tokens),
+        "apple_last_used": max(used) if used else None,
+        "oura": Integration.query.filter_by(user_id=uid, provider="oura").first(),
+        "share_links": ShareLink.query.filter_by(user_id=uid, revoked=False)
+        .filter(ShareLink.expires_at > utcnow())
+        .count(),
+    }
+
+
 @bp.route("/settings", methods=["GET", "POST"])
 @login_required
 def settings():
@@ -181,7 +207,24 @@ def settings():
         db.session.commit()
         flash("Settings saved.", "success")
         return redirect(url_for("auth.settings"))
-    return render_template("auth/settings.html", form=form, pw_form=pw_form)
+    return render_template("auth/settings.html", form=form, pw_form=pw_form, **_settings_context())
+
+
+@bp.route("/settings/trainer", methods=["POST"])
+@login_required
+def trainer_settings():
+    form = TrainerSettingsForm()
+    if not form.validate_on_submit():
+        for errors in form.errors.values():
+            for err in errors:
+                flash(err, "error")
+        return redirect(url_for("auth.settings"))
+    row = prefs.get_or_create_settings(current_user.id)
+    row.unit = form.unit.data
+    row.default_minutes = form.default_minutes.data
+    db.session.commit()
+    flash("Coach settings saved.", "success")
+    return redirect(url_for("auth.settings"))
 
 
 @bp.route("/settings/password", methods=["POST"])
@@ -227,7 +270,20 @@ def delete_account():
         from ..services import oura
 
         oura.revoke(integration)
-    for model in (ShareLink, ApiToken, HealthSample, Integration, GymProfile):
+    # Bulk deletes bypass ORM cascades, so dependants go first (BUILD_CONTRACT section 1).
+    for model in (
+        AIUsage,
+        DailyPlan,
+        SetLog,
+        EntryPlan,
+        ExerciseMuscles,
+        TrainerSettings,
+        ShareLink,
+        ApiToken,
+        HealthSample,
+        Integration,
+        GymProfile,
+    ):
         model.query.filter_by(user_id=uid).delete()
     for ws in WorkoutSession.query.filter_by(user_id=uid):
         db.session.delete(ws)  # cascades to entries

@@ -77,7 +77,7 @@ class Exercise(db.Model):
     instructions = db.Column(db.Text, nullable=False, default="")
     # Only a validated 11-char YouTube id is ever stored, never a raw URL.
     youtube_video_id = db.Column(db.String(11))
-    source = db.Column(db.String(10), nullable=False, default="manual")  # manual | ai
+    source = db.Column(db.String(10), nullable=False, default="manual")  # manual | ai | coach
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
 
@@ -170,3 +170,123 @@ class ShareLink(db.Model):
     revoked = db.Column(db.Boolean, nullable=False, default=False)
 
     user = db.relationship("User")
+
+
+# ---------------------------------------------------------------------------
+# AI coach tables (docs/BUILD_CONTRACT.md section 1). New tables only, so
+# ``db.create_all()`` upgrades an existing database in place.
+# ---------------------------------------------------------------------------
+class TrainerSettings(db.Model):
+    """Per-user coach preferences. Created lazily; a missing row means defaults."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), unique=True, nullable=False)
+    unit = db.Column(db.String(2), nullable=False, default="lb")  # "lb" | "kg"
+    default_minutes = db.Column(db.Integer, nullable=False, default=45)  # 10..120
+
+
+class ExerciseMuscles(db.Model):
+    """Canonical muscle tags for one library exercise."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    exercise_id = db.Column(
+        db.Integer, db.ForeignKey("exercise.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    primary = db.Column(db.String(12))  # canonical group or NULL (cardio / mobility)
+    secondary_json = db.Column(db.Text, nullable=False, default="[]")  # list[str] canonical, <=4
+    pattern = db.Column(db.String(20), nullable=False, default="other")
+    source = db.Column(db.String(10), nullable=False, default="rules")  # rules | ai | user
+
+    exercise = db.relationship(
+        "Exercise", backref=db.backref("muscles_row", uselist=False, cascade="all, delete-orphan")
+    )
+
+    @property
+    def secondary(self) -> list[str]:
+        try:
+            items = json.loads(self.secondary_json or "[]")
+        except ValueError:
+            return []
+        return [str(i) for i in items] if isinstance(items, list) else []
+
+
+class EntryPlan(db.Model):
+    """Targets and coach state for one SessionEntry (makes the entry "tracked")."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    entry_id = db.Column(
+        db.Integer, db.ForeignKey("session_entry.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    targets_json = db.Column(db.Text, nullable=False, default="[]")  # list[PlannedSet] JSON, 1..20
+    unit = db.Column(db.String(2), nullable=False, default="lb")
+    rest_seconds = db.Column(db.Integer, nullable=False, default=90)  # 0..600
+    rep_low = db.Column(db.Integer)  # NULL = timed
+    rep_high = db.Column(db.Integer)
+    pattern = db.Column(db.String(20), nullable=False, default="other")
+    progression_rule = db.Column(db.String(12), nullable=False, default="no_history")
+    progression_note = db.Column(db.String(160), nullable=False, default="")
+    plan_index = db.Column(db.Integer)  # index in DailyPlan, if the entry came from a plan
+    swaps_json = db.Column(db.Text, nullable=False, default="[]")  # list[PlannedExercise] JSON, <=3
+    swaps_source = db.Column(db.String(10))  # "ai" | "fallback" | NULL
+
+    entry = db.relationship(
+        "SessionEntry", backref=db.backref("plan", uselist=False, cascade="all, delete-orphan")
+    )
+
+
+class SetLog(db.Model):
+    """One row per COMPLETED set. Targets are copied server-side from EntryPlan."""
+
+    __table_args__ = (db.UniqueConstraint("entry_id", "set_index"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    entry_id = db.Column(
+        db.Integer, db.ForeignKey("session_entry.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    set_index = db.Column(db.Integer, nullable=False)  # 0-based, 0..19
+    reps = db.Column(db.Integer)  # 0..100; NULL for timed sets
+    seconds = db.Column(db.Integer)  # 1..600; timed sets only
+    weight = db.Column(db.Float)  # 0..2000 in `unit`; NULL = bodyweight
+    unit = db.Column(db.String(2), nullable=False, default="lb")
+    rating = db.Column(db.String(4))  # "easy" | "ok" | "hard" | NULL
+    target_reps = db.Column(db.Integer)
+    target_seconds = db.Column(db.Integer)
+    target_weight = db.Column(db.Float)
+    logged_at = db.Column(db.DateTime, nullable=False, default=utcnow)  # UTC
+
+    entry = db.relationship(
+        "SessionEntry",
+        backref=db.backref("set_logs", cascade="all, delete-orphan", order_by="SetLog.set_index"),
+    )
+
+
+class DailyPlan(db.Model):
+    """Today's plan (AI or fallback) as validated JSON."""
+
+    __table_args__ = (db.UniqueConstraint("user_id", "day"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    day = db.Column(db.Date, nullable=False)  # user's timezone (today_for)
+    source = db.Column(db.String(10), nullable=False)  # "ai" | "fallback"
+    plan_json = db.Column(db.Text, nullable=False)  # TodayPlan.model_dump_json()
+    generations = db.Column(db.Integer, nullable=False, default=0)  # AI generations today (max 5)
+    session_id = db.Column(db.Integer, db.ForeignKey("workout_session.id", ondelete="SET NULL"))
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+
+
+class AIUsage(db.Model):
+    """Per-user daily AI budget and token accounting (UTC day)."""
+
+    __table_args__ = (db.UniqueConstraint("user_id", "day"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    day = db.Column(db.Date, nullable=False)
+    calls = db.Column(db.Integer, nullable=False, default=0)
+    input_tokens = db.Column(db.Integer, nullable=False, default=0)
+    output_tokens = db.Column(db.Integer, nullable=False, default=0)

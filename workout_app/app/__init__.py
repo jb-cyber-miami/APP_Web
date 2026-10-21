@@ -115,6 +115,7 @@ def _register_error_handlers(app: Flask) -> None:
 
 
 def _register_template_helpers(app: Flask) -> None:
+    from .services.muscles import CANONICAL, LABELS
     from .timeutil import to_local
 
     @app.template_filter("localtime")
@@ -122,13 +123,101 @@ def _register_template_helpers(app: Flask) -> None:
         local = to_local(dt, tz_name)
         return local.strftime(fmt).lstrip("0") if local else ""
 
+    @app.template_filter("weight")
+    def weight_filter(value, unit="lb"):
+        if value is None or value == "":
+            return ""
+        from .services.progression import fmt_weight
+
+        return fmt_weight(value, unit)
+
+    @app.template_filter("num")
+    def num_filter(value):
+        if value is None:
+            return "—"
+        try:
+            return f"{int(round(float(value))):,}"
+        except (TypeError, ValueError):
+            return "—"
+
+    @app.template_filter("pct")
+    def pct_filter(value):
+        try:
+            return max(0, min(100, int(value or 0)))
+        except (TypeError, ValueError):
+            return 0
+
+    @app.template_filter("iso_utc")
+    def iso_utc(dt):
+        if dt is None:
+            return ""
+        from .timeutil import to_utc_naive
+
+        return to_utc_naive(dt).replace(microsecond=0).isoformat() + "Z"
+
+    @app.template_filter("muscle_label")
+    def muscle_label(key):
+        return LABELS.get(key or "", "")
+
     @app.context_processor
     def inject_features():
         return {
             "google_enabled": bool(app.config.get("GOOGLE_CLIENT_ID")),
             "oura_enabled": bool(app.config.get("OURA_CLIENT_ID")),
             "ai_enabled": bool(app.config.get("ANTHROPIC_API_KEY")),
+            "canonical_muscles": CANONICAL,
+            **_user_globals(),
         }
+
+
+def _user_globals() -> dict:
+    """Per-user template globals in at most 2 queries (one render per request).
+
+    Safe for anonymous users and error pages (any database error falls back to defaults).
+    """
+    import json
+
+    from flask_login import current_user
+    from sqlalchemy import select
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from .models import DailyPlan, Integration, TrainerSettings, WorkoutSession
+
+    out = {"now_session": None, "now_session_title": "Workout", "integration_alert": False, "user_unit": "lb"}
+    try:
+        if current_user and current_user.is_authenticated:
+            uid = current_user.id
+            row = (
+                db.session.query(WorkoutSession, DailyPlan.plan_json)
+                .outerjoin(DailyPlan, DailyPlan.session_id == WorkoutSession.id)
+                .filter(WorkoutSession.user_id == uid, WorkoutSession.ended_at.is_(None))
+                .order_by(WorkoutSession.started_at.desc())
+                .first()
+            )
+            if row is not None:
+                out["now_session"] = row[0]
+                if row[1]:
+                    try:
+                        title = json.loads(row[1]).get("title")
+                    except (ValueError, AttributeError):
+                        title = None
+                    if isinstance(title, str) and title.strip():
+                        out["now_session_title"] = title.strip()[:100]
+            unit, last_error = db.session.execute(
+                select(
+                    select(TrainerSettings.unit).where(TrainerSettings.user_id == uid).scalar_subquery(),
+                    select(Integration.last_error)
+                    .where(Integration.user_id == uid, Integration.provider == "oura")
+                    .limit(1)
+                    .scalar_subquery(),
+                )
+            ).one()
+            out["user_unit"] = "kg" if unit == "kg" else "lb"
+            out["integration_alert"] = bool(last_error)
+    except SQLAlchemyError:
+        logging.getLogger(__name__).warning("template globals unavailable", exc_info=True)
+        db.session.rollback()
+    return out
 
 
 @login_manager.user_loader

@@ -1,38 +1,202 @@
 {% extends "base.html" %}
 {% from "_macros.html" import post_button, share_button %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import page_head, stat_tile, chip, plan_row, body_map, rec_legend, week_strip, bar %}
 {% block title %}Today{% endblock %}
 {% block content %}
-<h1>Today <span class="muted small">{{ summary.day.strftime('%a, %b %-d') }}</span></h1>
+{% set tz = current_user.timezone %}
+{% call page_head("Today", eyebrow=summary.day.strftime('%A, %b %-d')) %}
+  <a class="btn-icon" href="{{ url_for('auth.settings') }}" aria-label="Profile and settings">{{ icon("profile") }}</a>
+{% endcall %}
 
-<section class="card">
-  {% with s = summary %}{% include "workouts/_day_card.html" %}{% endwith %}
-  {% if active %}
-    <a class="btn btn-block" href="{{ url_for('workouts.session_view', session_id=active.id) }}">▶ Continue workout (started {{ active.started_at|localtime(current_user.timezone) }})</a>
+{# ------------------------------------------------------------------ hero #}
+{% set p = hero.plan %}
+<section class="card card-hero hero-{{ hero.state }}" aria-labelledby="hero-title">
+  {% if hero.state == "active" %}
+    <div class="hero-top">
+      <p class="eyebrow eyebrow-accent"><span class="live-dot" aria-hidden="true"></span>In progress</p>
+      <span class="hero-time num" data-elapsed-since="{{ hero.session.started_at|iso_utc }}">{{ hero.session.started_at|localtime(tz) }}</span>
+    </div>
+    <h2 class="hero-title t-display" id="hero-title">{{ hero.title }}</h2>
+    {% if hero.exercises_total %}
+    <div class="hero-progress">
+      {{ bar((hero.exercises_done * 100 / hero.exercises_total)|int) }}
+      <span class="t-footnote num">{{ hero.exercises_done }} of {{ hero.exercises_total }} exercises</span>
+    </div>
+    {% else %}
+    <p class="hero-sub">Started {{ hero.session.started_at|localtime(tz) }}. Keep going.</p>
+    {% endif %}
+    <a class="btn btn-lg btn-block" href="{{ url_for('workouts.session_view', session_id=hero.session.id) }}">{{ icon("play", "icon-sm") }}<span>Continue workout</span></a>
+
+  {% elif hero.state == "done" %}
+    <p class="eyebrow eyebrow-ok">{{ icon("check", "icon-xs") }}Done today</p>
+    <h2 class="hero-title t-display" id="hero-title">{{ hero.title }}</h2>
+    <p class="hero-sub">Great work. Recovery starts now.</p>
+    <div class="stat-strip">
+      {{ stat_tile(hero.done_minutes if hero.done_minutes is not none else "—", "Minutes") }}
+      {{ stat_tile(hero.done_kcal|num if hero.done_kcal is not none else "—", "Active kcal") }}
+      {{ stat_tile(hero.session.entries|length, "Exercises") }}
+    </div>
+    <a class="btn btn-lg btn-block" href="{{ url_for('workouts.session_view', session_id=hero.session.id) }}">{{ icon("trophy", "icon-sm") }}<span>View summary</span></a>
+    {{ post_button(url_for('workouts.session_start'), "Start another", "btn btn-ghost btn-block") }}
+
   {% else %}
-    {{ post_button(url_for('workouts.session_start'), "▶ Start workout", "btn btn-block") }}
+    <div class="hero-top">
+      {% if hero.state == "rest" %}
+      <p class="eyebrow">{{ icon("moon", "icon-xs") }}Rest day</p>
+      {% else %}
+      <p class="eyebrow eyebrow-accent">Today's workout</p>
+      {% endif %}
+      {% if p and p.source == "ai" %}{{ chip("AI coach", "ai", icon_name="sparkle") }}{% elif p %}{{ chip("Coach plan", "", icon_name="bolt") }}{% endif %}
+    </div>
+    <h2 class="hero-title t-display" id="hero-title">{{ hero.title }}</h2>
+    {% if hero.state == "rest" %}
+      <p class="hero-sub">Your muscles need another day. Light movement is fine.</p>
+    {% elif p and p.rationale %}
+      <p class="hero-sub">{{ p.rationale }}</p>
+    {% endif %}
+
+    {% if hero.focus %}
+    <ul class="chip-row" aria-label="Focus muscles">
+      {% for f in hero.focus %}<li>{{ chip(f.label ~ " " ~ f.pct ~ "%", "", dot=f.rec) }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if p %}
+    <div class="stat-strip stat-strip-inline">
+      {{ stat_tile(p.estimated_minutes, "Min") }}
+      {{ stat_tile(p.exercises|length, "Exercises") }}
+      {{ stat_tile(hero.total_sets, "Sets") }}
+    </div>
+    {% endif %}
+
+    {% if hero.rows %}
+    <ul class="plan-list">
+      {% for row in hero.rows %}{{ plan_row(row) }}{% endfor %}
+    </ul>
+    {% if hero.more %}<p class="plan-more t-footnote">+ {{ hero.more }} more</p>{% endif %}
+    {% endif %}
+
+    {% if p and p.notice %}<p class="hero-notice t-footnote">{{ icon("info", "icon-xs") }}{{ p.notice }}</p>{% endif %}
+
+    <form method="post" action="{{ url_for('workouts.plan_start') }}" class="hero-cta">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if hero.state == "rest" %}
+      <button type="submit" class="btn btn-secondary btn-lg btn-block">{{ icon("play", "icon-sm") }}<span>Start anyway</span></button>
+      {% else %}
+      <button type="submit" class="btn btn-lg btn-block">{{ icon("play", "icon-sm") }}<span>Start workout</span></button>
+      {% endif %}
+    </form>
+
+    <details class="hero-more">
+      <summary>{{ icon("sparkle", "icon-sm") }}<span>Change today's plan</span>{{ icon("chevron-down", "icon-sm chev") }}</summary>
+      <form method="post" action="{{ url_for('workouts.plan_rebuild') }}" class="stack-3" novalidate>
+        {{ plan_form.hidden_tag() }}
+        <fieldset class="field">
+          <legend class="field-label">Focus</legend>
+          <div class="chip-radios">
+            {% for sub in plan_form.focus %}
+            <span class="chip-radio">{{ sub() }}{{ sub.label() }}</span>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <div class="field">
+          {{ plan_form.minutes.label(class_="field-label") }}
+          <div class="stepper" data-stepper>
+            <button type="button" class="stepper-btn" data-step="-5" aria-label="5 minutes less" hidden>{{ icon("minus", "icon-sm") }}</button>
+            {{ plan_form.minutes(class_="num", inputmode="numeric", min=10, max=120, step=5) }}
+            <button type="button" class="stepper-btn" data-step="5" aria-label="5 minutes more" hidden>{{ icon("plus", "icon-sm") }}</button>
+          </div>
+        </div>
+        <div class="field">
+          {{ plan_form.extra.label(class_="field-label") }}
+          {{ plan_form.extra(maxlength=300, placeholder="e.g. short on time, easy on my knee") }}
+        </div>
+        {% if ai_enabled %}
+        <button type="submit" class="btn btn-ai btn-block" formaction="{{ url_for('workouts.plan_generate') }}"
+                data-busy="Planning your session…"{% if ai_left == 0 %} disabled{% endif %}>
+          {{ icon("sparkle", "icon-sm") }}<span>Build with AI coach</span>
+        </button>
+        {% if ai_left is not none %}<p class="hint">{{ ai_left }} AI build{{ "" if ai_left == 1 else "s" }} left today.</p>{% endif %}
+        {% endif %}
+        <button type="submit" class="btn btn-secondary btn-block">{{ icon("sync", "icon-sm") }}<span>Rebuild without AI</span></button>
+      </form>
+    </details>
+    {{ post_button(url_for('workouts.session_start'), "Start empty workout", "btn btn-ghost btn-block") }}
   {% endif %}
 </section>
 
-<section class="card">
-  <h2>Sessions</h2>
-  {% if not summary.sessions %}
-    <p class="muted">No workout logged yet today.</p>
+{# ------------------------------------------------------------------ recovery #}
+<section class="section" aria-labelledby="rec-h">
+  <div class="section-head">
+    <h2 class="eyebrow" id="rec-h">Recovery</h2>
+  </div>
+  <div class="card recovery-card">
+    {{ body_map(recovery, uid="rec") }}
+    {{ rec_legend() }}
+    {% if recovery.has_history %}
+    <dl class="rec-groups">
+      {% for key, label in [("fatigued", "Fatigued"), ("recovering", "Recovering"), ("fresh", "Fresh")] %}
+      {% set items = recovery.groups.get(key, []) %}
+      {% if items %}
+      <div class="rec-group">
+        <dt><span class="dot {{ 'rec-0' if key == 'fatigued' else ('rec-2' if key == 'recovering' else 'rec-4') }}" aria-hidden="true"></span>{{ label }}</dt>
+        <dd>{% for v in items %}{{ v.label }}{% if v.trained and key != "fresh" %} <span class="num">{{ v.pct }}%</span>{% if v.ready_in_h %} <span class="muted">· ready in {{ v.ready_in_h }}h</span>{% endif %}{% endif %}{{ ", " if not loop.last }}{% endfor %}</dd>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </dl>
+    {% else %}
+    <p class="t-callout muted">Log a workout and your recovery map fills in. Every muscle starts fresh.</p>
+    {% endif %}
+  </div>
+</section>
+
+{# ------------------------------------------------------------------ week #}
+<section class="section" aria-labelledby="week-h">
+  <div class="section-head">
+    <h2 class="eyebrow" id="week-h">This week</h2>
+    {% if streak %}{{ chip(streak ~ "-week streak", "accent", icon_name="flame") }}{% endif %}
+  </div>
+  <div class="card">
+    {{ week_strip(week) }}
+  </div>
+  {% set active_kcal, active_src = summary.headline_active %}
+  <div class="stat-strip">
+    {{ stat_tile(active_kcal|num if active_kcal is not none else "—", "Active kcal",
+                 src=("Apple Watch" if active_src == "apple" else ("Oura" if active_src == "oura" else None)),
+                 src_icon=("watch" if active_src == "apple" else "ring")) }}
+    {{ stat_tile(summary.session_kcal|num if summary.session_kcal else "—", "Workout kcal") }}
+    {{ stat_tile(summary.sessions|length, "Sessions") }}
+  </div>
+  {% if summary.daily_active|length > 1 %}
+  <p class="hint">Apple Watch: {{ summary.daily_active.get('apple') }} kcal · Oura: {{ summary.daily_active.get('oura') }} kcal (shown separately, never added together)</p>
   {% endif %}
-  <ul class="list">
-  {% for ws in summary.sessions %}
+</section>
+
+{# ------------------------------------------------------------------ sessions #}
+{% if summary.sessions %}
+<section class="section" aria-labelledby="ses-h">
+  <div class="section-head"><h2 class="eyebrow" id="ses-h">Today's sessions</h2></div>
+  <ul class="list-group">
+    {% for ws in summary.sessions %}
     <li>
-      <a href="{{ url_for('workouts.session_view', session_id=ws.id) }}">
-        <strong>{{ ws.started_at|localtime(current_user.timezone) }}{% if ws.ended_at %} – {{ ws.ended_at|localtime(current_user.timezone) }}{% else %} · in progress{% endif %}</strong>
-        <span class="muted">{{ ws.entries|length }} exercises{% if ws.calories is not none %} · {{ ws.calories }} kcal{% endif %}</span>
+      <a class="list-row" href="{{ url_for('workouts.session_view', session_id=ws.id) }}">
+        <span class="list-row-lead icon-tile">{{ icon("play" if ws.ended_at is none else "check", "icon-sm") }}</span>
+        <span class="list-row-body">
+          <span class="list-row-title num">{{ ws.started_at|localtime(tz) }}{% if ws.ended_at %}–{{ ws.ended_at|localtime(tz) }}{% else %} · in progress{% endif %}</span>
+          <span class="list-row-meta">{{ ws.entries|length }} exercise{{ "" if ws.entries|length == 1 else "s" }}{% if ws.calories is not none %} · {{ ws.calories }} kcal{% endif %}</span>
+        </span>
+        <span class="list-row-trail">{{ icon("chevron-right", "icon-sm") }}</span>
       </a>
     </li>
-  {% endfor %}
+    {% endfor %}
   </ul>
 </section>
+{% endif %}
 
-<section class="card">
-  <h2>Tell a friend</h2>
-  <p class="muted">{% if summary.went_to_gym %}Share today's workout and calories.{% else %}Didn't make it today? Share that too — accountability works.{% endif %}</p>
-  {{ share_button(summary.day) }}
+<section class="section share-today">
+  <p class="t-callout muted">{% if summary.went_to_gym %}Share today's workout and calories.{% else %}Didn't make it today? Share that too. Accountability works.{% endif %}</p>
+  {{ share_button(summary.day, "Share today", "btn btn-secondary btn-block") }}
 </section>
 {% endblock %}

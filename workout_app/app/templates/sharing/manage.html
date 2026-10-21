@@ -1,17 +1,27 @@
 {% extends "base.html" %}
 {% from "_macros.html" import post_button %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import page_head %}
 {% block title %}Share links{% endblock %}
 {% block content %}
-<h1>Active share links</h1>
-<section class="card">
-  {% if not links %}<p class="muted">No active links.</p>{% endif %}
-  <ul class="list">
-    {% for l in links %}
-    <li class="row-between">
-      <span><strong>{{ l.day.strftime('%a, %b %-d') }}</strong><br><span class="small muted">expires {{ l.expires_at|localtime(current_user.timezone, "%b %-d") }}</span></span>
-      {{ post_button(url_for('sharing.revoke', link_id=l.id), "Revoke", "btn btn-danger btn-small") }}
-    </li>
-    {% endfor %}
-  </ul>
-</section>
+{{ page_head("Share links", eyebrow="Active", back=url_for('auth.settings'), back_label="Back to Profile") }}
+{% if not links %}
+<div class="empty-state empty-state-sm">
+  <span class="empty-state-icon">{{ icon("link", "icon-xl") }}</span>
+  <p class="muted">No active links. Share a day from Today or Progress.</p>
+</div>
+{% else %}
+<ul class="list-group">
+  {% for l in links %}
+  <li class="list-row">
+    <span class="list-row-lead icon-tile">{{ icon("link", "icon-sm") }}</span>
+    <span class="list-row-body">
+      <span class="list-row-title">{{ l.day.strftime('%a, %b %-d') }}</span>
+      <span class="list-row-meta">expires {{ l.expires_at|localtime(current_user.timezone, "%b %-d") }}</span>
+    </span>
+    {{ post_button(url_for('sharing.revoke', link_id=l.id), "Revoke", "btn btn-ghost btn-sm btn-danger-text") }}
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
 {% endblock %}

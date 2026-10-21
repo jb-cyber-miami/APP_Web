@@ -52,6 +52,37 @@ YouTube lookup).
    `session_id` and updates the session immediately.
 5. A manual number always wins and is never overwritten by later syncs.
 
+**Today's workout (AI coach)**
+1. `GET /` → `trainer.today_plan`: today's stored `DailyPlan` if valid, else an **unsaved**
+   deterministic `fallback_plan`. GET never calls Claude and never writes.
+2. `POST /plan/generate` → `trainer.build_context` (gym, recovery, neglected muscles, last 5
+   sessions, library) → `ai_coach.generate_today` (structured JSON, `effort="medium"`) →
+   pydantic re-validation → `trainer.finalize_plan` (equipment filter, library resolution,
+   recovery guard, **history wins** for weights/reps) → `DailyPlan.plan_json`. No key, an
+   `AIError`, the daily budget (`AIUsage`) or 5 generations today → the fallback plan with a notice.
+   `POST /plan/rebuild` is the same without AI.
+3. `POST /plan/start` → `trainer.start_plan`: a `WorkoutSession` with one `SessionEntry` +
+   `EntryPlan` (per-set targets) per planned exercise; unknown exercises are added to the library.
+
+**Set-by-set logging**
+* An entry with an `EntryPlan` is *tracked*. A `SetLog` row exists only for a **completed** set;
+  open rows are rendered from the targets. Targets on a `SetLog` are copied server-side from the
+  `EntryPlan`, and the unit comes from `TrainerSettings`, never from the form.
+* `POST /sessions/<sid>/entries/<eid>/sets` (check), `/sessions/<sid>/sets/<id>/delete` (uncheck),
+  `/rate` (Easy/Good/Hard). With `X-Requested-With: fetch` they return JSON for `workout.js`;
+  without JS they redirect back to `#ex-<eid>`.
+* `sets.sync_entry` keeps the legacy `sets_done/reps_done/weight` fields in step, so history,
+  share pages and older code keep working. Entries without an `EntryPlan` are *legacy* and are
+  expanded by `sets_done` wherever sets are counted.
+* Swap: only on a tracked entry with 0 logged sets in an open session. Options (AI or
+  fallback) are stored on `EntryPlan.swaps_json`; the form posts only an integer `choice`.
+
+**Coach maths (deterministic, no AI, `now` passed in)**
+`muscles` (taxonomy) → `recovery` (7-day dose model) / `progression` (Epley, next targets) →
+`strength` (self-relative Strength Index) / `summary` (volume, PRs, next time) /
+`activity` (week strip, calendar, streak). Import graph has no cycles; `ai_coach` never imports
+`trainer`.
+
 **Daily totals** come from *daily* samples (Oura `daily_activity`, Apple daily shortcut).
 They are shown per source, and the headline number prefers Apple.
 
@@ -67,6 +98,21 @@ All timestamps are stored as naive UTC. A session's `day` is computed in the use
 
 `db.create_all()` runs at start-up, which is fine for a first version. Before changing models
 in production, add **Flask-Migrate (Alembic)** so schema changes are versioned and reversible.
+
+The AI coach release only adds tables, so `create_all` upgrades an existing database in place:
+
+| Table | Holds | Notes |
+|---|---|---|
+| `trainer_settings` | unit (lb/kg), default minutes | lazily created; absence = defaults |
+| `exercise_muscles` | canonical primary/secondary muscles + pattern per library exercise | `rules`/`ai`/`user` source; a `user` row is never overwritten |
+| `entry_plan` | per-entry set targets, rest, progression note, swap options | makes an entry *tracked* |
+| `set_log` | one completed set (reps/seconds, weight, unit, rating, copied targets) | unique per entry + set index |
+| `daily_plan` | today's validated plan JSON, AI generation count, linked session | unique per user + day |
+| `ai_usage` | Claude calls and tokens per user per UTC day | the real cost cap |
+
+Every new table carries `user_id`. SQLite doesn't enforce `ondelete`, so deletes go through the
+ORM cascades, `exercise_delete` nulls `SessionEntry.exercise_id`, `session_delete` nulls
+`DailyPlan.session_id`, and account deletion removes the new tables first.
 
 ## Adding a feature: checklist
 

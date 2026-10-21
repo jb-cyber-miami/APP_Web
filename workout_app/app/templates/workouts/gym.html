@@ -1,19 +1,26 @@
 {% extends "base.html" %}
 {% from "_macros.html" import field %}
+{% from "_ui.html" import page_head %}
 {% block title %}My gym{% endblock %}
 {% block content %}
-<h1>My gym</h1>
-<p class="muted">The AI builder only picks exercises you can do with this equipment.</p>
-<form method="post" class="card" novalidate>
+{{ page_head("My gym", back=url_for('workouts.exercises'), back_label="Back to Library") }}
+<p class="t-callout muted lead">Your coach and the AI builder only pick exercises you can do with this equipment.</p>
+<form method="post" class="card stack-3" novalidate>
   {{ form.hidden_tag() }}
   {{ field(form.gym_size) }}
-  <div class="field">
-    {{ form.equipment.label }}
-    <div class="checkgrid">{{ form.equipment() }}</div>
+  <fieldset class="field">
+    <legend class="field-label">{{ form.equipment.label.text }}</legend>
+    <div class="chip-radios">
+      {% for sub in form.equipment %}
+      <span class="chip-radio">{{ sub() }}{{ sub.label() }}</span>
+      {% endfor %}
+    </div>
+  </fieldset>
+  <div class="grid-2">
+    {{ field(form.goal) }}
+    {{ field(form.experience) }}
   </div>
-  {{ field(form.goal) }}
-  {{ field(form.experience) }}
   {{ field(form.notes, attrs={"rows": 3, "maxlength": 500}) }}
-  <button class="btn btn-block" type="submit">Save gym</button>
+  <button class="btn btn-lg btn-block" type="submit">Save gym</button>
 </form>
 {% endblock %}

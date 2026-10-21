@@ -1,32 +1,47 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import stat_tile %}
 {% block title %}{{ owner.display_name }}'s workout{% endblock %}
 {% block head %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block body_class %}public-page{% endblock %}
+{% block tabbar %}{% endblock %}
 {% block content %}
 {% set s = summary %}
-<section class="card share-card {{ 'went' if s.went_to_gym else 'skipped' }}">
-  <p class="muted">{{ s.day.strftime('%A, %B %-d') }}</p>
-  {% if s.went_to_gym %}
-    <h1>💪 {{ owner.display_name }} trained today</h1>
-  {% else %}
-    <h1>😴 {{ owner.display_name }} didn't go to the gym</h1>
-    <p>Rest day or skipped — give them a nudge!</p>
-  {% endif %}
-
-  {% set active_kcal, active_src = s.headline_active %}
-  <div class="stats">
-    <div class="stat"><span class="stat-value">{{ s.session_kcal or "—" }}</span><span class="stat-label">workout kcal</span></div>
-    <div class="stat"><span class="stat-value">{{ active_kcal if active_kcal is not none else "—" }}</span><span class="stat-label">active kcal (day)</span></div>
-    <div class="stat"><span class="stat-value">{{ s.exercise_names|length }}</span><span class="stat-label">exercises</span></div>
+{% set active_kcal, active_src = s.headline_active %}
+<article class="share-page {{ 'went' if s.went_to_gym else 'skipped' }}">
+  <p class="eyebrow">{{ s.day.strftime('%A, %B %-d') }}</p>
+  <div class="share-title">
+    <span class="icon-tile icon-tile-lg {{ 'icon-tile-accent' if s.went_to_gym else 'icon-tile-muted' }}">{{ icon("muscle" if s.went_to_gym else "moon") }}</span>
+    {% if s.went_to_gym %}
+      <h1 class="t-display">{{ owner.display_name }} trained today</h1>
+    {% else %}
+      <h1 class="t-display">{{ owner.display_name }} didn't go to the gym</h1>
+    {% endif %}
   </div>
+  {% if not s.went_to_gym %}<p class="t-callout muted">Rest day or skipped — give them a nudge!</p>{% endif %}
+
+  <section class="card card-hero{% if not s.went_to_gym %} is-dim{% endif %}">
+    <div class="stat-strip">
+      {{ stat_tile(s.session_kcal or "—", "Workout kcal") }}
+      {{ stat_tile(active_kcal if active_kcal is not none else "—", "Active kcal (day)") }}
+      {{ stat_tile(s.exercise_names|length, "Exercises") }}
+    </div>
+  </section>
 
   {% if s.went_to_gym %}
-  <h2>Exercises</h2>
-  <ul class="list">
-    {% for ws in s.sessions %}{% for e in ws.entries %}
-      <li>{{ e.exercise_name }} <span class="muted small">{{ e.sets_done }} × {{ e.reps_done }}{% if e.weight %} @ {{ e.weight }}{% endif %}</span></li>
-    {% endfor %}{% endfor %}
-  </ul>
+  <section class="section">
+    <div class="section-head"><h2 class="eyebrow">Exercises</h2></div>
+    <ul class="card plan-list">
+      {% for ws in s.sessions %}{% for e in ws.entries %}
+      <li class="plan-row">
+        <span class="plan-row-name">{{ e.exercise_name }}</span>
+        <span class="plan-row-rx num">{{ e.sets_done }} × {{ e.reps_done }}{% if e.weight %} @ {{ e.weight }}{% endif %}</span>
+      </li>
+      {% endfor %}{% endfor %}
+    </ul>
+  </section>
   {% endif %}
-</section>
-<p class="center small muted">Shared with FitLog</p>
+
+  <p class="share-foot"><span class="wordmark wordmark-sm"><span class="wordmark-fit">FIT<span class="wordmark-bar" aria-hidden="true"></span></span>LOG</span><span> · shared with you</span></p>
+</article>
 {% endblock %}

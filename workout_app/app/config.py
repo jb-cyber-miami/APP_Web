@@ -61,6 +61,9 @@ class Config:
 
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
     AI_MODEL = os.environ.get("AI_MODEL", "claude-opus-5-5")
+    # Hard per-user daily cap on Claude calls (AIUsage table); the limiter is per-worker memory.
+    AI_DAILY_CALLS = int(os.environ.get("AI_DAILY_CALLS", "25"))
+    AI_MAX_PLAN_GENERATIONS = 5
 
     YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 

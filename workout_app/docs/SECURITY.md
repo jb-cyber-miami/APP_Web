@@ -26,16 +26,16 @@ Everything on the left is treated as hostile input, **including AI output and pa
 | B5 | Oura ↔ app | Oura API | OAuth2 with `state`; tokens Fernet-encrypted at rest; refresh tokens rotated; revoked on disconnect/account delete; responses parsed defensively and clamped |
 | B6 | iPhone Shortcut → `/api/v1/apple/*` | Holder of a token | 256-bit random bearer token, stored as SHA-256 only, shown once, revocable, max 5 per user; pydantic schema with ranges; can only write to its owner's data; rate limited per token; CSRF-exempt because it uses no cookies |
 | B7 | Friend → `/s/<token>` | Anyone with the link | 256-bit random token, SHA-256 at rest, expires (7 days by default), revocable, `noindex`, `Referrer-Policy: no-referrer`; shows only display name, day, exercises, calories, never username, email or other days |
-| B8 | App → Anthropic | App only | Key server-side only; user free text length-limited and wrapped in `<user_notes>`; structured JSON output; re-validated with pydantic; rendered autoescaped; per-user rate limit (10/h) protects cost |
+| B8 | App → Anthropic | App only | Key server-side only; user free text sanitized (`<`/`>` stripped), length-limited and wrapped in tags; structured JSON output with enums; re-validated with pydantic, clamped, equipment-filtered; history overrides AI weights; plans and swap options stored only after validation and re-validated on load; forms post only bounds-checked integers (`choice`, `set_index`); rendered autoescaped; **no AI call on GET**; per-user rate limits (`/plan/generate` 6/h and 20/day, swaps 30/h, AI builder 10/h) plus a **database daily budget** (`AIUsage`, `AI_DAILY_CALLS`, default 25) shared by every Claude call; logs never contain prompt or response text |
 | B9 | YouTube embeds in browser | YouTube | Only an 11-char ID matching `^[A-Za-z0-9_-]{11}$` is stored; host allow-list when parsing; `youtube-nocookie.com` iframe with `sandbox`; CSP `frame-src` restricted to that host |
 
 ## Controls in code
 
 | Threat (OWASP Top 10) | Where it's handled |
 |---|---|
-| A01 Broken access control / IDOR | `security.owned_or_404`, `@login_required`, tests in `tests/test_security.py` |
+| A01 Broken access control / IDOR | `security.owned_or_404`, `@login_required`; child rows are also checked (`entry.session_id == ws.id`, `set.entry.session_id == ws.id`) and 404 on mismatch; `exercise_id` values from stored plan JSON are re-checked against the owner; tests in `tests/test_security.py`, `test_sets.py`, `test_swap_routes.py`, `test_today_progress.py` |
 | A02 Cryptographic failures | scrypt passwords (Werkzeug), Fernet for OAuth tokens, SHA-256 for random tokens, HSTS, `Secure` cookies |
-| A03 Injection / XSS | SQLAlchemy ORM; Jinja autoescape; **no inline JS** so CSP is `script-src 'self'` |
+| A03 Injection / XSS | SQLAlchemy ORM; Jinja autoescape (AI text included, never `|safe`); **no inline JS, no `<style>`, no `style=""`, no `on*=`** so CSP is `script-src 'self'; style-src 'self'` (enforced by `tests/test_templates_csp.py`); dynamic sizes only through clamped SVG attributes; JS uses `textContent`, never `innerHTML` with server data |
 | A04 Insecure design | Least data on share pages; manual review step before AI output is saved |
 | A05 Security misconfiguration | `create_app` refuses to start in production without a strong `SECRET_KEY`, or without `TOKEN_ENCRYPTION_KEY` when Oura is on; no debug in prod; custom error pages (no stack traces) |
 | A06 Vulnerable components | Pinned `requirements.txt`, `pip-audit` + Dependabot in CI |
@@ -60,7 +60,12 @@ HTTP headers on every response: `Content-Security-Policy`, `Strict-Transport-Sec
 
 * Users can delete their account (Settings), which deletes all rows and revokes the Oura grant.
 * Health data is only used to show the user their own numbers and what they choose to share.
-* Sending gym notes to Anthropic happens only when the user presses "Build my workout".
+* Sending gym notes to Anthropic happens only when the user presses "Build my workout",
+  "Build with AI coach" or asks for AI swap options. The prompt holds no e-mail, username or
+  display name, only training data, equipment and the user's notes.
+* Account deletion removes every coach table (`ai_usage`, `daily_plan`, `set_log`, `entry_plan`,
+  `exercise_muscles`, `trainer_settings`) before the existing rows.
+* Public share pages show no recovery, strength or plan data.
 
 ## Pre-release checklist
 
@@ -69,7 +74,8 @@ HTTP headers on every response: `Content-Security-Policy`, `Strict-Transport-Sec
 - [ ] HTTPS only (Render does this); `PROXY_FIX_HOPS` matches the number of proxies
 - [ ] Redis `RATELIMIT_STORAGE_URI` if more than one worker/instance
 - [ ] OAuth redirect URIs registered exactly (`https://…/auth/google/callback`, `https://…/integrations/oura/callback`)
-- [ ] Anthropic key has a monthly spend limit set in the Console
+- [ ] Anthropic key has a monthly spend limit set in the Console; `AI_DAILY_CALLS` set (default 25)
+- [ ] gunicorn `--timeout 120` (AI plan generation can take tens of seconds)
 - [ ] CI green: ruff, bandit, pip-audit, pytest
 - [ ] Old quiz `users.json` / default credentials not reused here
 

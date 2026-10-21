@@ -1,20 +1,39 @@
 {% extends "base.html" %}
 {% from "_macros.html" import share_button %}
-{% block title %}History{% endblock %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import page_head, chip %}
+{% block title %}{{ days[0].day.strftime('%b %-d') if single_day and days else "History" }}{% endblock %}
 {% block content %}
-<h1>Last 14 days</h1>
+{% if single_day and days %}
+  {{ page_head(days[0].day.strftime('%A, %b %-d'), eyebrow="Day", back=url_for('workouts.progress', month=days[0].day.strftime('%Y-%m')), back_label="Back to Progress") }}
+{% else %}
+  {{ page_head("Last 14 days", eyebrow="History", back=url_for('workouts.progress'), back_label="Back to Progress") }}
+{% endif %}
+
 {% for s in days %}
-<section class="card day {{ 'went' if s.went_to_gym else 'skipped' }}">
+<section class="card day {{ 'went' if s.went_to_gym else 'skipped' }}" aria-labelledby="d-{{ s.day.isoformat() }}">
   <div class="day-head">
-    <h2>{{ s.day.strftime('%a, %b %-d') }}</h2>
-    <span class="badge {{ 'badge-ok' if s.went_to_gym else 'badge-miss' }}">{{ "✅ Gym" if s.went_to_gym else "❌ No gym" }}</span>
+    <h2 class="t-headline" id="d-{{ s.day.isoformat() }}">{{ s.day.strftime('%a, %b %-d') }}</h2>
+    {% if s.went_to_gym %}{{ chip("Gym", "ok", icon_name="check") }}{% else %}{{ chip("No gym", "danger", icon_name="moon") }}{% endif %}
   </div>
   {% include "workouts/_day_card.html" %}
-  {% if s.exercise_names %}<p class="small">{{ s.exercise_names|join(", ") }}</p>{% endif %}
-  {% for ws in s.sessions %}
-    <a class="small" href="{{ url_for('workouts.session_view', session_id=ws.id) }}">View session {{ loop.index }}</a>
-  {% endfor %}
-  {{ share_button(s.day, "Share this day") }}
+  {% if s.exercise_names %}<p class="t-callout day-exercises">{{ s.exercise_names|join(", ") }}</p>{% endif %}
+  {% if s.sessions %}
+  <ul class="list-group list-group-flat">
+    {% for ws in s.sessions %}
+    <li>
+      <a class="list-row" href="{{ url_for('workouts.session_view', session_id=ws.id) }}">
+        <span class="list-row-body">
+          <span class="list-row-title">View session {{ loop.index }}</span>
+          <span class="list-row-meta num">{{ ws.started_at|localtime(current_user.timezone) }} · {{ ws.entries|length }} exercise{{ "" if ws.entries|length == 1 else "s" }}</span>
+        </span>
+        <span class="list-row-trail">{{ icon("chevron-right", "icon-sm") }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {{ share_button(s.day, "Share this day", "btn btn-secondary btn-sm") }}
 </section>
 {% endfor %}
 {% endblock %}

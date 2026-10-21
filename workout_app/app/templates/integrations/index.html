@@ -1,68 +1,98 @@
 {% extends "base.html" %}
-{% from "_macros.html" import field, post_button %}
-{% block title %}Sync{% endblock %}
+{% from "_macros.html" import post_button %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import page_head, chip %}
+{% block title %}Devices{% endblock %}
 {% block content %}
-<h1>Sync your wearables</h1>
+{% set tz = current_user.timezone %}
+{{ page_head("Devices", eyebrow="Sync your wearables", back=url_for('auth.settings'), back_label="Back to Profile") }}
 
-<section class="card">
-  <h2>💍 Oura Ring</h2>
-  {% if not oura_enabled %}
-    <p class="muted">Oura isn't configured on this server yet (OURA_CLIENT_ID / OURA_CLIENT_SECRET). See docs/INTEGRATIONS.md.</p>
-  {% elif oura_integration %}
-    <p>Connected ✅{% if oura_integration.last_synced_at %} · last sync {{ oura_integration.last_synced_at|localtime(current_user.timezone, "%b %-d, %I:%M %p") }}{% endif %}</p>
-    {% if oura_integration.last_error %}<p class="error">{{ oura_integration.last_error }}</p>{% endif %}
-    <div class="row-wrap">
-      {{ post_button(url_for('integrations.oura_sync'), "↻ Sync now") }}
-      {{ post_button(url_for('integrations.oura_disconnect'), "Disconnect", "btn btn-danger", confirm="Disconnect Oura?") }}
+<section class="card device-card" aria-labelledby="apple-h">
+  <div class="device-card-head">
+    <span class="icon-tile">{{ icon("watch") }}</span>
+    <div>
+      <h2 class="t-headline" id="apple-h">Apple Health &amp; Watch</h2>
+      <p class="t-footnote muted"><span class="dot {{ 'dot-ok' if tokens else 'dot-off' }}" aria-hidden="true"></span>{% if tokens %}{{ tokens|length }} token{{ "" if tokens|length == 1 else "s" }}{% else %}Not set up yet{% endif %}</p>
     </div>
-  {% else %}
-    <p class="muted">Pulls your daily active calories and workouts from Oura.</p>
-    <a class="btn" href="{{ url_for('integrations.oura_connect') }}">Connect Oura</a>
-  {% endif %}
-</section>
-
-<section class="card">
-  <h2>⌚ Apple Health / Apple Watch</h2>
-  <p class="muted">Apple doesn't offer a web API for Health data, so your iPhone sends it to FitLog with a Shortcut. It takes about 3 minutes to set up once.</p>
+  </div>
+  <p class="t-callout muted">Apple doesn't offer a web API for Health data, so your iPhone sends it to FitLog with a Shortcut. It takes about 3 minutes to set up once.</p>
 
   {% if new_token %}
-  <div class="flash flash-success">
+  <div class="notice notice-warn new-token">
     <p><strong>Copy this token now — it won't be shown again.</strong></p>
     <div class="copy-row">
-      <input id="new-token" value="{{ new_token }}" readonly>
-      <button type="button" class="btn btn-small" data-copy="#new-token">Copy</button>
+      <label class="visually-hidden" for="new-token">New token</label>
+      <input id="new-token" value="{{ new_token }}" readonly class="mono">
+      <button type="button" class="btn btn-sm" data-copy="#new-token">{{ icon("copy", "icon-sm") }}<span>Copy</span></button>
     </div>
   </div>
   {% endif %}
 
-  <ol class="steps">
-    <li>Create a token below and copy it.</li>
-    <li>In the <strong>Shortcuts</strong> app, build the two shortcuts described in the guide (daily calories and “Workout Calories”).</li>
-    <li>Use these addresses:
-      <ul class="plain small">
-        <li>Daily: <code>{{ api_base }}/api/v1/apple/daily</code></li>
-        <li>Workout: <code>{{ api_base }}/api/v1/apple/workout</code></li>
-      </ul>
-    </li>
-    <li>Add a Personal Automation (e.g. every day at 9 PM, or “When Apple Watch workout ends”) to run them automatically.</li>
-  </ol>
+  <details class="inline-details"{% if not tokens %} open{% endif %}>
+    <summary>{{ icon("list", "icon-sm") }}<span>How to set up (4 steps)</span>{{ icon("chevron-down", "icon-sm chev") }}</summary>
+    <ol class="steps">
+      <li>Create a token below and copy it.</li>
+      <li>In the <strong>Shortcuts</strong> app, build the two shortcuts described in the guide (daily calories and “Workout Calories”).</li>
+      <li>Use these addresses (tap to copy).</li>
+      <li>Add a Personal Automation (e.g. every day at 9 PM, or “When Apple Watch workout ends”) to run them automatically.</li>
+    </ol>
+  </details>
+  <div class="copy-row">
+    <span class="copy-label eyebrow">Daily</span>
+    <input id="api-daily" value="{{ api_base }}/api/v1/apple/daily" readonly class="mono" aria-label="Daily calories address">
+    <button type="button" class="btn-icon" data-copy="#api-daily" aria-label="Copy daily address">{{ icon("copy", "icon-sm") }}</button>
+  </div>
+  <div class="copy-row">
+    <span class="copy-label eyebrow">Workout</span>
+    <input id="api-workout" value="{{ api_base }}/api/v1/apple/workout" readonly class="mono" aria-label="Workout calories address">
+    <button type="button" class="btn-icon" data-copy="#api-workout" aria-label="Copy workout address">{{ icon("copy", "icon-sm") }}</button>
+  </div>
 
-  <form method="post" action="{{ url_for('integrations.token_create') }}" class="row-wrap" novalidate>
+  <form method="post" action="{{ url_for('integrations.token_create') }}" class="token-form" novalidate>
     {{ token_form.hidden_tag() }}
+    <label class="visually-hidden" for="{{ token_form.name.id }}">{{ token_form.name.label.text }}</label>
     {{ token_form.name(maxlength=40) }}
-    <button class="btn" type="submit">Create token</button>
+    <button class="btn" type="submit">{{ icon("plus", "icon-sm") }}<span>Create token</span></button>
   </form>
 
   {% if tokens %}
-  <ul class="list">
+  <ul class="list-group list-group-flat">
     {% for t in tokens %}
-    <li class="row-between">
-      <span><strong>{{ t.name }}</strong> <code class="small">{{ t.prefix }}…</code><br>
-        <span class="small muted">{% if t.last_used_at %}last used {{ t.last_used_at|localtime(current_user.timezone, "%b %-d, %I:%M %p") }}{% else %}never used{% endif %}</span></span>
-      {{ post_button(url_for('integrations.token_delete', token_id=t.id), "Revoke", "btn btn-danger btn-small", confirm="Revoke this token?") }}
+    <li class="list-row">
+      <span class="list-row-lead icon-tile">{{ icon("key", "icon-sm") }}</span>
+      <span class="list-row-body">
+        <span class="list-row-title">{{ t.name }} <code class="t-footnote">{{ t.prefix }}…</code></span>
+        <span class="list-row-meta">{% if t.last_used_at %}last used {{ t.last_used_at|localtime(tz, "%b %-d, %I:%M %p") }}{% else %}never used{% endif %}</span>
+      </span>
+      {{ post_button(url_for('integrations.token_delete', token_id=t.id), "Revoke", "btn btn-ghost btn-sm btn-danger-text", confirm="Revoke this token?") }}
     </li>
     {% endfor %}
   </ul>
+  {% endif %}
+</section>
+
+<section class="card device-card" aria-labelledby="oura-h">
+  <div class="device-card-head">
+    <span class="icon-tile">{{ icon("ring") }}</span>
+    <div>
+      <h2 class="t-headline" id="oura-h">Oura Ring</h2>
+      {% if oura_integration %}
+        <p class="t-footnote muted">{% if oura_integration.last_synced_at %}Last sync {{ oura_integration.last_synced_at|localtime(tz, "%b %-d, %I:%M %p") }}{% else %}Not synced yet{% endif %}</p>
+      {% endif %}
+    </div>
+    {% if oura_integration %}{{ chip("Connected", "ok", icon_name="check") }}{% elif oura_enabled %}{{ chip("Not connected") }}{% endif %}
+  </div>
+  {% if not oura_enabled %}
+    <p class="t-callout muted">Oura isn't configured on this server yet (OURA_CLIENT_ID / OURA_CLIENT_SECRET). See docs/INTEGRATIONS.md.</p>
+  {% elif oura_integration %}
+    {% if oura_integration.last_error %}<p class="error">{{ icon("alert", "icon-sm") }}<span>{{ oura_integration.last_error }}</span></p>{% endif %}
+    <div class="row-wrap">
+      {{ post_button(url_for('integrations.oura_sync'), "Sync now", "btn btn-secondary", icon_name="sync") }}
+      {{ post_button(url_for('integrations.oura_disconnect'), "Disconnect", "btn btn-ghost btn-danger-text", confirm="Disconnect Oura?") }}
+    </div>
+  {% else %}
+    <p class="t-callout muted">Pulls your daily active calories and workouts from Oura.</p>
+    <a class="btn btn-block" href="{{ url_for('integrations.oura_connect') }}">{{ icon("link", "icon-sm") }}<span>Connect Oura</span></a>
   {% endif %}
 </section>
 {% endblock %}

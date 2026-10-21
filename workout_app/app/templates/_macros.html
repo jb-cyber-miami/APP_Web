@@ -1,15 +1,17 @@
+{% from "_icons.html" import icon %}
+
 {% macro field(f, type=None, attrs={}) -%}
   <div class="field{% if f.errors %} has-error{% endif %}">
-    {{ f.label }}
-    {{ f(**attrs) }}
-    {% for e in f.errors %}<p class="error">{{ e }}</p>{% endfor %}
+    {{ f.label(class_="field-label") }}
+    {% if f.errors %}{{ f(**dict(attrs, **{"aria-invalid": "true", "aria-describedby": f.id ~ "-error"})) }}{% else %}{{ f(**attrs) }}{% endif %}
+    {% for e in f.errors %}<p class="error" id="{{ f.id }}-error">{{ icon("alert", "icon-sm") }}<span>{{ e }}</span></p>{% endfor %}
   </div>
 {%- endmacro %}
 
-{% macro post_button(action, label, cls="btn", confirm=None) -%}
+{% macro post_button(action, label, cls="btn", confirm=None, icon_name=None, aria_label=None) -%}
   <form method="post" action="{{ action }}" class="inline"{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button type="submit" class="{{ cls }}">{{ label }}</button>
+    <button type="submit" class="{{ cls }}"{% if aria_label %} aria-label="{{ aria_label }}"{% endif %}>{% if icon_name %}{{ icon(icon_name, "icon-sm") }}{% endif %}{% if label %}<span>{{ label }}</span>{% endif %}</button>
   </form>
 {%- endmacro %}
 
@@ -26,10 +28,10 @@
   {% endif %}
 {%- endmacro %}
 
-{% macro share_button(day, label="Share with a friend") -%}
+{% macro share_button(day, label="Share with a friend", cls="btn btn-secondary") -%}
   <form method="post" action="{{ url_for('sharing.create') }}" class="inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="day" value="{{ day.isoformat() }}">
-    <button type="submit" class="btn btn-secondary">📤 {{ label }}</button>
+    <button type="submit" class="{{ cls }}">{{ icon("share", "icon-sm") }}<span>{{ label }}</span></button>
   </form>
 {%- endmacro %}

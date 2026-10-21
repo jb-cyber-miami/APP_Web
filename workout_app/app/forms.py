@@ -4,8 +4,10 @@ from flask_wtf import FlaskForm
 from wtforms import (
     BooleanField,
     DateField,
+    DecimalField,
     IntegerField,
     PasswordField,
+    RadioField,
     SelectField,
     SelectMultipleField,
     StringField,
@@ -16,6 +18,7 @@ from wtforms.validators import (
     URL,
     DataRequired,
     EqualTo,
+    InputRequired,
     Length,
     NumberRange,
     Optional,
@@ -23,6 +26,7 @@ from wtforms.validators import (
     ValidationError,
 )
 
+from .services.muscles import SWAP_REASONS
 from .services.youtube import parse_video_id
 from .timeutil import is_valid_timezone
 
@@ -151,7 +155,7 @@ class GymProfileForm(FlaskForm):
 
 
 class AIGenerateForm(FlaskForm):
-    focus = SelectField("Focus", choices=FOCUS)
+    focus = RadioField("Focus", choices=FOCUS, default="full body")
     count = IntegerField("How many exercises", default=6, validators=[DataRequired(), NumberRange(3, 10)])
     minutes = IntegerField(
         "Workout length (minutes)", default=45, validators=[DataRequired(), NumberRange(10, 120)]
@@ -164,6 +168,7 @@ class EntryForm(FlaskForm):
     sets_done = IntegerField("Sets", default=3, validators=[DataRequired(), NumberRange(1, 50)])
     reps_done = StringField("Reps", validators=[Optional(), Length(max=20)])
     weight = StringField("Weight", validators=[Optional(), Length(max=20)])
+    log_all = BooleanField("Already done — log all sets")
 
 
 class ManualCaloriesForm(FlaskForm):
@@ -176,3 +181,38 @@ class ApiTokenForm(FlaskForm):
 
 class ShareForm(FlaskForm):
     day = DateField("Day", validators=[DataRequired()])
+
+
+RATING_CHOICES = [("", "—"), ("easy", "Easy"), ("ok", "Good"), ("hard", "Hard")]
+
+
+class PlanGenerateForm(FlaskForm):
+    minutes = IntegerField(
+        "Workout length (minutes)", default=45, validators=[InputRequired(), NumberRange(10, 120)]
+    )
+    focus = RadioField("Focus", choices=[("auto", "Let the coach decide")] + FOCUS, default="auto")
+    extra = StringField("Anything for today? (optional)", validators=[Optional(), Length(max=300)])
+
+
+class SetLogForm(FlaskForm):
+    # InputRequired (not DataRequired): set 0 is a valid index.
+    set_index = IntegerField("Set", validators=[InputRequired(), NumberRange(0, 19)])
+    reps = IntegerField("Reps", validators=[Optional(), NumberRange(0, 100)])
+    seconds = IntegerField("Seconds", validators=[Optional(), NumberRange(1, 600)])
+    weight = DecimalField("Weight", places=2, validators=[Optional(), NumberRange(0, 2000)])
+    rating = SelectField("How did it feel?", choices=RATING_CHOICES, validators=[Optional()], default="")
+
+
+class RateForm(FlaskForm):
+    rating = SelectField("How did it feel?", choices=RATING_CHOICES, validators=[Optional()])
+
+
+class SwapForm(FlaskForm):
+    reason = RadioField("Why swap?", choices=list(SWAP_REASONS), default="preference")
+
+
+class TrainerSettingsForm(FlaskForm):
+    unit = SelectField("Weight unit", choices=[("lb", "lb"), ("kg", "kg")])
+    default_minutes = IntegerField(
+        "Default workout length (minutes)", default=45, validators=[InputRequired(), NumberRange(10, 120)]
+    )

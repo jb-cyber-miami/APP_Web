@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import page_head, ring, bar, calendar, chip, stat_tile %}
+{% block title %}Progress{% endblock %}
+{% block content %}
+{% call page_head("Progress", eyebrow="Strength and consistency") %}
+  <a class="btn-icon" href="{{ url_for('workouts.history') }}" aria-label="All days">{{ icon("calendar") }}</a>
+{% endcall %}
+
+<section class="card card-hero index-hero" aria-labelledby="idx-h">
+  <div class="index-hero-body">
+    {{ ring(overall_pct, 140, "Index", report.overall if report.overall is not none else "—") }}
+    <div class="index-hero-text">
+      <h2 class="eyebrow eyebrow-accent" id="idx-h">Strength Index</h2>
+      {% if report.overall is not none %}
+        <p class="t-callout">100 is your own baseline. Above it, you're stronger than when you started.</p>
+        {% if report.overall_delta_28d is not none %}
+          {% set d = report.overall_delta_28d %}
+          <p class="{{ 'delta-up' if d > 0 else ('delta-down' if d < 0 else 'delta-flat') }} num">
+            {% if d != 0 %}{{ icon("arrow-up" if d > 0 else "arrow-down", "icon-xs") }}{% endif %}{{ "+" if d > 0 }}{{ d }} in 4 weeks
+          </p>
+        {% endif %}
+      {% else %}
+        <p class="t-callout">Log the same lifts a few times and your index appears here.</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="bm-h">
+  <div class="section-head"><h2 class="eyebrow" id="bm-h">By muscle</h2></div>
+  <ul class="card meter-list">
+    {% for r in rows %}
+    <li class="meter-row{% if r.index is none %} is-empty{% endif %}">
+      <span class="meter-label">{{ r.label }}</span>
+      {{ bar(r.pct) }}
+      <span class="meter-value num">{{ r.index if r.index is not none else "—" }}
+        {%- if r.delta_28d %} <span class="{{ 'delta-up' if r.delta_28d > 0 else 'delta-down' }}">{{ "+" if r.delta_28d > 0 }}{{ r.delta_28d }}</span>{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+{% if top_lifts %}
+<section class="section" aria-labelledby="top-h">
+  <div class="section-head"><h2 class="eyebrow" id="top-h">Top lifts</h2></div>
+  <ul class="list-group">
+    {% for lf in top_lifts %}
+    <li>
+      {% if lf.exercise_id %}<a class="list-row" href="{{ url_for('workouts.exercise_detail', exercise_id=lf.exercise_id) }}">{% else %}<div class="list-row">{% endif %}
+        <span class="list-row-lead icon-tile{% if lf.pr %} icon-tile-ok{% endif %}">{{ icon("trophy" if lf.pr else "library", "icon-sm") }}</span>
+        <span class="list-row-body">
+          <span class="list-row-title">{{ lf.name }}{% if lf.pr %} {{ chip("PR", "ok") }}{% endif %}</span>
+          <span class="list-row-meta num">{{ lf.muscle|muscle_label }} · best {{ lf.best_set }}{% if lf.stale %} · not trained lately{% endif %}</span>
+        </span>
+        <span class="list-row-trail num"><span class="trail-value">{{ lf.current_e1rm|weight(unit) }}</span><span class="eyebrow">e1RM</span></span>
+      {% if lf.exercise_id %}</a>{% else %}</div>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="section" aria-labelledby="cal-h">
+  <div class="section-head">
+    <h2 class="eyebrow" id="cal-h">Calendar</h2>
+    {% if streak %}{{ chip(streak ~ "-week streak", "accent", icon_name="flame") }}{% endif %}
+  </div>
+  <div class="card">
+    {{ calendar(month) }}
+    <p class="cal-summary t-callout"><span class="num">{{ month.gym_days }}</span> gym day{{ "" if month.gym_days == 1 else "s" }} in {{ month.title }}</p>
+  </div>
+  <a class="btn btn-secondary btn-block" href="{{ url_for('workouts.history') }}">{{ icon("list", "icon-sm") }}<span>All days</span></a>
+</section>
+{% endblock %}

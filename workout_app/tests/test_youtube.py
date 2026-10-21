@@ -1,5 +1,6 @@
 import pytest
 
+from app.models import Exercise
 from app.services.youtube import parse_video_id
 
 
@@ -36,7 +37,8 @@ def test_exercise_with_video_embeds_nocookie(alice):
         },
     )
     assert resp.status_code == 302
-    page = alice.get("/exercises").data
+    ex = Exercise.query.filter_by(name="Goblet Squat").one()
+    page = alice.get(f"/exercises/{ex.id}").data
     assert b"https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ" in page
 
 
@@ -57,5 +59,6 @@ def test_exercise_rejects_non_youtube_url(alice):
 
 def test_exercise_without_video_shows_search_link(alice):
     alice.post("/exercises/new", data={"name": "Face Pull", "sets": 3, "reps": "15", "rest_seconds": 45})
-    page = alice.get("/exercises").data
+    ex = Exercise.query.filter_by(name="Face Pull").one()
+    page = alice.get(f"/exercises/{ex.id}").data
     assert b"youtube.com/results?search_query=how+to+do+Face+Pull" in page

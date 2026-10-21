@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "_macros.html" import post_button, video %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import page_head, chip, stat_tile, body_map %}
+{% block title %}{{ exercise.name }}{% endblock %}
+{% block content %}
+{% call page_head(exercise.name, eyebrow="Exercise", back=url_for('workouts.exercises'), back_label="Back to Library") %}
+  <a class="btn-icon" href="{{ url_for('workouts.exercise_edit', exercise_id=exercise.id) }}" aria-label="Edit {{ exercise.name }}">{{ icon("edit", "icon-sm") }}</a>
+  {{ post_button(url_for('workouts.exercise_delete', exercise_id=exercise.id), None, "btn-icon btn-icon-danger", confirm="Delete " ~ exercise.name ~ "?", icon_name="trash", aria_label="Delete " ~ exercise.name) }}
+{% endcall %}
+
+{% if exercise.youtube_video_id %}
+  {{ video(exercise.youtube_video_id, exercise.name) }}
+{% else %}
+  <a class="card card-link video-search" href="{{ search_url(exercise.name) }}" target="_blank" rel="noopener noreferrer">
+    <span class="icon-tile">{{ icon("video") }}</span>
+    <span class="list-row-body"><span class="list-row-title">Find a how-to video on YouTube</span><span class="list-row-meta">Opens a search in a new tab</span></span>
+    {{ icon("chevron-right", "icon-sm") }}
+  </a>
+{% endif %}
+
+<ul class="chip-row chip-row-wrap detail-chips">
+  {% for m in targets %}<li>{{ chip(m|muscle_label, "accent" if loop.first and muscles.primary == m else "") }}</li>{% endfor %}
+  {% if exercise.equipment %}<li>{{ chip(exercise.equipment) }}</li>{% endif %}
+  {% if exercise.source in ["ai", "coach"] %}<li>{{ chip("AI" if exercise.source == "ai" else "Coach", "ai", icon_name="sparkle") }}</li>{% endif %}
+</ul>
+
+<div class="stat-strip">
+  {{ stat_tile(e1rm|weight(unit) if e1rm is not none else "—", "e1RM") }}
+  {{ stat_tile(best_set or "—", "Best set") }}
+  {{ stat_tile(last_day.strftime('%b %-d') if last_day else "—", "Last") }}
+</div>
+
+{% if targets %}
+<section class="section" aria-labelledby="tg-h">
+  <div class="section-head"><h2 class="eyebrow" id="tg-h">Muscles</h2></div>
+  <div class="card mw-card">
+    {{ body_map(targets=targets, mode="target", mini=True, uid="ex") }}
+    <p class="t-callout muted">{% for m in targets %}{{ m|muscle_label }}{{ " (primary)" if m == muscles.primary }}{{ ", " if not loop.last }}{% endfor %}</p>
+  </div>
+</section>
+{% endif %}
+
+{% if exercise.instructions %}
+<section class="section" aria-labelledby="how-h">
+  <div class="section-head"><h2 class="eyebrow" id="how-h">How to</h2></div>
+  <div class="card"><p class="pre t-body">{{ exercise.instructions }}</p></div>
+</section>
+{% endif %}
+
+{% if spark_points %}
+<section class="section" aria-labelledby="tr-h">
+  <div class="section-head"><h2 class="eyebrow" id="tr-h">Trend</h2><span class="t-footnote muted">Estimated 1-rep max</span></div>
+  <div class="card">
+    <svg class="spark" viewBox="0 0 100 32" preserveAspectRatio="none" role="img" aria-label="Estimated one-rep max trend over recent sessions">
+      <polyline class="spark-line" points="{{ spark_points }}" vector-effect="non-scaling-stroke"/>
+    </svg>
+  </div>
+</section>
+{% endif %}
+
+<section class="section" aria-labelledby="hi-h">
+  <div class="section-head"><h2 class="eyebrow" id="hi-h">History</h2></div>
+  {% if history_rows %}
+  <ul class="list-group">
+    {% for h in history_rows %}
+    <li>
+      <a class="list-row" href="{{ url_for('workouts.session_view', session_id=h.session_id) }}">
+        <span class="list-row-body">
+          <span class="list-row-title">{{ h.day.strftime('%a, %b %-d') }}</span>
+          <span class="list-row-meta num">{{ h.sets|join(" · ") }}</span>
+        </span>
+        <span class="list-row-trail num">{% if h.e1rm is not none %}<span class="trail-value">{{ h.e1rm|weight(unit) }}</span><span class="eyebrow">e1RM</span>{% endif %}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="t-callout muted">Not logged yet. Add it to a workout and your sets show up here.</p>
+  {% endif %}
+</section>
+
+<section class="section" aria-labelledby="df-h">
+  <div class="section-head"><h2 class="eyebrow" id="df-h">Defaults</h2></div>
+  <div class="card defaults num">
+    <span><strong>{{ exercise.sets }} × {{ exercise.reps }}</strong></span>
+    <span class="muted">Rest {{ exercise.rest_seconds }}s</span>
+    {% if exercise.muscle_group %}<span class="muted">{{ exercise.muscle_group }}</span>{% endif %}
+  </div>
+</section>
+{% endblock %}
