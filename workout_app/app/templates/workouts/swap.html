@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import page_head, chip, rx_text %}
+{% block title %}Swap {{ entry.exercise_name }}{% endblock %}
+{% block body_class %}focus-mode{% endblock %}
+{% block tabbar %}{% endblock %}
+{% block content %}
+{% set back = url_for('workouts.session_view', session_id=ws.id) ~ "#ex-" ~ entry.id %}
+{{ page_head("Swap exercise", eyebrow="Replacing", back=back, back_label="Back to workout") }}
+
+<section class="card swap-current">
+  <p class="eyebrow">Current</p>
+  <h2 class="t-title">{{ current.name }}</h2>
+  <p class="t-callout muted num">{{ current.primary|muscle_label }} · {{ rx_text(current) }}</p>
+</section>
+
+<section class="section" aria-labelledby="opt-h">
+  <div class="section-head">
+    <h2 class="eyebrow" id="opt-h">Options</h2>
+    {% if source == "ai" %}{{ chip("AI coach", "ai", icon_name="sparkle") }}{% elif source %}{{ chip("Coach picks", "", icon_name="bolt") }}{% endif %}
+  </div>
+  {% if notice %}<p class="hint">{{ icon("info", "icon-xs") }}{{ notice }}</p>{% endif %}
+  {% if options %}
+  <ul class="option-list">
+    {% for o in options %}
+    <li class="card option-card">
+      <div class="option-body">
+        <h3 class="t-headline">{{ o.name }}</h3>
+        <p class="t-callout muted num">{{ o.primary|muscle_label }} · {{ rx_text(o) }}{% if o.weight_label %} · <span class="tag-suggested">{{ o.weight_label }}</span>{% endif %}</p>
+        {% if o.note %}<p class="t-footnote muted">{{ o.note }}</p>{% endif %}
+        {% if o.warning %}{{ chip("Still recovering", "warn") }}{% endif %}
+      </div>
+      <form method="post" action="{{ url_for('workouts.entry_swap_apply', session_id=ws.id, entry_id=entry.id, choice=loop.index0) }}" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm{% if not loop.first %} btn-secondary{% endif %}">{{ icon("swap", "icon-sm") }}<span>Use this</span></button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="empty-state empty-state-sm">
+    <p class="muted">No alternatives found for this exercise. Try a different reason below.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="section" aria-labelledby="why-h">
+  <div class="section-head"><h2 class="eyebrow" id="why-h">Not right? Tell the coach why</h2></div>
+  <form method="post" action="{{ url_for('workouts.entry_swap', session_id=ws.id, entry_id=entry.id) }}" class="card stack-3"
+        novalidate{% if ai_enabled %} data-busy="Finding options…"{% endif %}>
+    {{ form.hidden_tag() }}
+    <fieldset class="field">
+      <legend class="field-label">{{ form.reason.label.text }}</legend>
+      <div class="chip-radios chip-radios-stack">
+        {% for sub in form.reason %}
+        <span class="chip-radio">{{ sub() }}{{ sub.label() }}</span>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <button type="submit" class="btn {{ 'btn-ai' if ai_enabled else 'btn-secondary' }} btn-block">
+      {{ icon("sparkle" if ai_enabled else "sync", "icon-sm") }}<span>{{ "Ask the coach for new options" if ai_enabled else "Get new options" }}</span>
+    </button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,13 @@
+{# expects: s (DaySummary) #}
+{% from "_ui.html" import stat_tile %}
+{% set active_kcal, active_src = s.headline_active %}
+<div class="stat-strip stats">
+  {{ stat_tile(s.session_kcal|num if s.session_kcal else "—", "Workout kcal") }}
+  {{ stat_tile(active_kcal|num if active_kcal is not none else "—", "Active kcal",
+               src=("Apple" if active_src == "apple" else ("Oura" if active_src == "oura" else None)),
+               src_icon=("watch" if active_src == "apple" else "ring")) }}
+  {{ stat_tile(s.exercise_names|length, "Exercises") }}
+</div>
+{% if s.daily_active|length > 1 %}
+<p class="hint">Apple Watch: {{ s.daily_active.get('apple') }} kcal · Oura: {{ s.daily_active.get('oura') }} kcal (shown separately, never added together)</p>
+{% endif %}

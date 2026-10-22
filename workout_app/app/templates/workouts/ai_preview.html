@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import page_head, chip %}
+{% block title %}Your AI workout{% endblock %}
+{% block content %}
+{{ page_head(plan.title or focus, eyebrow="AI builder", back=url_for('workouts.exercise_ai'), back_label="Back to AI builder") }}
+<p class="t-callout muted lead">Untick anything you don't want, then save to your library. Always warm up and use a weight you can control.</p>
+<form method="post" action="{{ url_for('workouts.exercise_ai_save') }}" data-select-count>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <ul class="preview-list">
+  {% for ex in plan.exercises %}
+  <li class="card preview-card">
+    <label class="check-round">
+      <input type="checkbox" name="selected" value="{{ loop.index0 }}" checked>
+      <span class="check-round-box" aria-hidden="true">{{ icon("check", "icon-sm") }}</span>
+      <span class="visually-hidden">Keep {{ ex.name }}</span>
+    </label>
+    <h2 class="t-headline preview-name">{{ ex.name }}</h2>
+    <p class="t-callout muted num">{{ ex.sets }} × {{ ex.reps }} · rest {{ ex.rest_seconds }}s</p>
+    <ul class="chip-row chip-row-wrap">
+      {% if ex.muscle_group %}<li>{{ chip(ex.muscle_group) }}</li>{% endif %}
+      {% if ex.equipment %}<li>{{ chip(ex.equipment) }}</li>{% endif %}
+    </ul>
+    {% if ex.instructions %}
+    <details class="inline-details">
+      <summary>{{ icon("info", "icon-sm") }}<span>How to</span>{{ icon("chevron-down", "icon-sm chev") }}</summary>
+      <p class="pre t-callout">{{ ex.instructions }}</p>
+    </details>
+    {% endif %}
+    {% for f in ["name", "muscle_group", "equipment", "sets", "reps", "rest_seconds", "instructions"] %}
+      <input type="hidden" name="{{ f }}" value="{{ ex[f] }}">
+    {% endfor %}
+  </li>
+  {% endfor %}
+  </ul>
+  <div class="sticky-actions">
+    <button class="btn btn-lg btn-block" type="submit">Save <span data-select-count-value>{{ plan.exercises|length }}</span> to my library</button>
+    <a class="btn btn-ghost btn-block" href="{{ url_for('workouts.exercise_ai') }}">Try again</a>
+  </div>
+</form>
+{% endblock %}
