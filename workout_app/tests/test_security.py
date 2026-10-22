@@ -85,3 +85,22 @@ def test_production_refuses_weak_secret(monkeypatch):
     monkeypatch.setattr(config.Config, "SECRET_KEY", "short")
     with pytest.raises(RuntimeError, match="32 characters"):
         create_app("production")
+
+
+def test_encryption_accepts_host_generated_secret(app):
+    from app.security import decrypt, encrypt
+
+    # Render's generateValue gives a random base64 string that is not a Fernet key.
+    app.config["TOKEN_ENCRYPTION_KEY"] = "q1Zr8+Xk2/9vL0aPq3sT6uW8yB1cD4eF7gH0jK3mN5o="
+    token = encrypt("oura-access-token")
+    assert "oura-access-token" not in token
+    assert decrypt(token) == "oura-access-token"
+
+
+def test_production_refuses_short_encryption_key(monkeypatch):
+    from app import config
+
+    monkeypatch.setattr(config.Config, "SECRET_KEY", "s" * 64)
+    monkeypatch.setattr(config.Config, "TOKEN_ENCRYPTION_KEY", "short")
+    with pytest.raises(RuntimeError, match="TOKEN_ENCRYPTION_KEY"):
+        create_app("production")

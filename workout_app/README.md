@@ -52,18 +52,29 @@ pip-audit -r requirements.txt           # known-vulnerable dependencies
 pytest -q                               # 350+ tests incl. auth, IDOR, CSRF, API, sharing, coach
 ```
 
-## Deploy (Render example)
+## Deploy (Render)
 
-1. New **Web Service** → this repo → **Root Directory** `workout_app`.
-2. Build: `pip install -r requirements.txt`
-3. Start: `gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120`
-   (an AI plan can take up to ~40 s; the default 30 s gunicorn timeout would kill it).
-4. Add a **Render Postgres** database and set `DATABASE_URL` (SQLite data is lost on redeploy).
-5. Set env vars from `.env.example` as secrets: at minimum `APP_ENV=production`,
-   `SECRET_KEY`, `TOKEN_ENCRYPTION_KEY`, `DATABASE_URL`, `PROXY_FIX_HOPS=1`.
-6. With more than one worker or instance, point `RATELIMIT_STORAGE_URI` at Redis.
-7. Optional: `ANTHROPIC_API_KEY` for the AI coach, and `AI_DAILY_CALLS` (default 25) to cap
-   Claude calls per user per day.
+The repository root has a `render.yaml` Blueprint that creates everything in one go: the web
+service (root `workout_app`), a private Postgres database, and auto-generated `SECRET_KEY`
+and `TOKEN_ENCRYPTION_KEY`.
+
+1. Merge this code into the branch Render deploys (normally `main`).
+2. Render dashboard → **New → Blueprint** → choose this repository → **Apply**.
+3. When asked for the optional keys (`ANTHROPIC_API_KEY`, Google, Oura, YouTube), paste the
+   ones you have and leave the rest empty. You can add them later under **Environment**.
+4. Open the `https://fitlog-xxxx.onrender.com` address Render shows, create your account, and
+   on the iPhone: Safari → Share → **Add to Home Screen**.
+5. Register the redirect URIs with Google/Oura using that address (see docs/INTEGRATIONS.md).
+
+Cost: about $13/month (Starter web $7 + Basic Postgres $6). Free plans work for a trial, but
+the free web service sleeps after 15 idle minutes and a free database is deleted after 30 days.
+Render backs up paid Postgres databases automatically.
+
+Manual setup without the Blueprint: build `pip install -r requirements.txt`, start
+`gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120`, and set
+`APP_ENV=production`, `PROXY_FIX_HOPS=1`, `DATABASE_URL`, `SECRET_KEY`, `TOKEN_ENCRYPTION_KEY`
+(any random string of 32+ characters). With more than one worker or instance, point
+`RATELIMIT_STORAGE_URI` at Redis. `AI_DAILY_CALLS` (default 25) caps Claude calls per user per day.
 
 ## Project layout
 

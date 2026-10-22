@@ -65,6 +65,9 @@ def _check_config(app: Flask, config_name: str) -> None:
         raise RuntimeError("SECRET_KEY must be at least 32 characters in production")
     if app.config.get("OURA_CLIENT_ID") and not app.config.get("TOKEN_ENCRYPTION_KEY"):
         raise RuntimeError("TOKEN_ENCRYPTION_KEY is required when Oura is enabled")
+    key = app.config.get("TOKEN_ENCRYPTION_KEY")
+    if key and len(key) < 32:
+        raise RuntimeError("TOKEN_ENCRYPTION_KEY must be at least 32 characters in production")
     if app.config["SQLALCHEMY_DATABASE_URI"].startswith("sqlite"):
         logging.getLogger(__name__).warning(
             "Using SQLite in production: data is lost on hosts with ephemeral disks (e.g. Render)."
