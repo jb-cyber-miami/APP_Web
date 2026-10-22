@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from urllib.parse import urlsplit
 
 from flask import Flask, render_template
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -20,8 +21,10 @@ def create_app(config_name: str | None = None) -> Flask:
 
     _check_config(app, config_name)
 
+    if app.config.get("PUBLIC_URL"):
+        app.wsgi_app = PublicURL(app.wsgi_app, app.config["PUBLIC_URL"])
     hops = app.config["PROXY_FIX_HOPS"]
-    if hops:
+    if hops:  # wraps PublicURL, so it runs first: client IP from X-Forwarded-For
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=hops, x_proto=hops, x_host=hops)
 
     logging.basicConfig(level=logging.INFO)
@@ -31,7 +34,9 @@ def create_app(config_name: str | None = None) -> Flask:
     limiter.init_app(app)
     login_manager.init_app(app)
     login_manager.login_view = "auth.login"
-    login_manager.session_protection = "strong"
+    # "basic", not "strong": strong signs people out whenever their IP changes (gym Wi-Fi <->
+    # cellular, or a CDN in front). Sessions stay HttpOnly, Secure and invalidatable server-side.
+    login_manager.session_protection = "basic"
     oauth.init_app(app)
     _register_oauth_clients(app)
 
@@ -55,6 +60,26 @@ def create_app(config_name: str | None = None) -> Flask:
     return app
 
 
+class PublicURL:
+    """Treat every request as arriving on PUBLIC_URL (scheme + host).
+
+    Firebase Hosting forwards requests to Cloud Run, where the Host is the service's own
+    *.run.app name. Pinning the public address keeps OAuth redirect URIs, share links and the
+    Apple Shortcut API address on the domain people actually use, whatever headers arrive.
+    """
+
+    def __init__(self, wsgi_app, public_url: str):
+        parts = urlsplit(public_url)
+        if parts.scheme not in {"http", "https"} or not parts.netloc:
+            raise RuntimeError("PUBLIC_URL must look like https://my-project.web.app")
+        self.wsgi_app, self.scheme, self.host = wsgi_app, parts.scheme, parts.netloc
+
+    def __call__(self, environ, start_response):
+        environ["wsgi.url_scheme"] = self.scheme
+        environ["HTTP_HOST"] = self.host
+        return self.wsgi_app(environ, start_response)
+
+
 def _check_config(app: Flask, config_name: str) -> None:
     """Fail fast on unsafe configuration instead of running insecurely."""
     if not app.config.get("SECRET_KEY"):
@@ -70,7 +95,7 @@ def _check_config(app: Flask, config_name: str) -> None:
         raise RuntimeError("TOKEN_ENCRYPTION_KEY must be at least 32 characters in production")
     if app.config["SQLALCHEMY_DATABASE_URI"].startswith("sqlite"):
         logging.getLogger(__name__).warning(
-            "Using SQLite in production: data is lost on hosts with ephemeral disks (e.g. Render)."
+            "Using SQLite in production: data is lost on hosts with ephemeral disks (e.g. Cloud Run)."
         )
 
 

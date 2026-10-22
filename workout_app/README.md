@@ -52,29 +52,20 @@ pip-audit -r requirements.txt           # known-vulnerable dependencies
 pytest -q                               # 350+ tests incl. auth, IDOR, CSRF, API, sharing, coach
 ```
 
-## Deploy (Render)
+## Deploy (Google Firebase)
 
-The repository root has a `render.yaml` Blueprint that creates everything in one go: the web
-service (root `workout_app`), a private Postgres database, and auto-generated `SECRET_KEY`
-and `TOKEN_ENCRYPTION_KEY`.
+FitLog runs on **Firebase Hosting** (your `https://PROJECT-ID.web.app` address, HTTPS, CDN) in
+front of **Cloud Run** (the Python app in a container), with **Cloud SQL for PostgreSQL** for
+the data and **Secret Manager** for keys. Firebase Hosting can't run Python by itself, so it
+forwards every request to Cloud Run.
 
-1. Merge this code into the branch Render deploys (normally `main`).
-2. Render dashboard → **New → Blueprint** → choose this repository → **Apply**.
-3. When asked for the optional keys (`ANTHROPIC_API_KEY`, Google, Oura, YouTube), paste the
-   ones you have and leave the rest empty. You can add them later under **Environment**.
-4. Open the `https://fitlog-xxxx.onrender.com` address Render shows, create your account, and
-   on the iPhone: Safari → Share → **Add to Home Screen**.
-5. Register the redirect URIs with Google/Oura using that address (see docs/INTEGRATIONS.md).
+One script sets all of it up from Google Cloud Shell:
 
-Cost: about $13/month (Starter web $7 + Basic Postgres $6). Free plans work for a trial, but
-the free web service sleeps after 15 idle minutes and a free database is deleted after 30 days.
-Render backs up paid Postgres databases automatically.
+```bash
+bash workout_app/deploy/firebase-deploy.sh YOUR-FIREBASE-PROJECT-ID
+```
 
-Manual setup without the Blueprint: build `pip install -r requirements.txt`, start
-`gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120`, and set
-`APP_ENV=production`, `PROXY_FIX_HOPS=1`, `DATABASE_URL`, `SECRET_KEY`, `TOKEN_ENCRYPTION_KEY`
-(any random string of 32+ characters). With more than one worker or instance, point
-`RATELIMIT_STORAGE_URI` at Redis. `AI_DAILY_CALLS` (default 25) caps Claude calls per user per day.
+Step-by-step guide, costs and troubleshooting: [docs/DEPLOY_FIREBASE.md](docs/DEPLOY_FIREBASE.md).
 
 ## Project layout
 

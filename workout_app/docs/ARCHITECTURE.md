@@ -5,7 +5,7 @@
 A server-rendered Flask application. A server-rendered app was chosen over a JavaScript
 SPA and separate API on purpose:
 
-* One deployable unit, one language (Python), and no build step. It's easy to run on Render.
+* One deployable unit, one language (Python), and no build step. It runs as one container on Cloud Run behind Firebase Hosting.
 * Secrets (Anthropic, Oura, Google, YouTube keys) never leave the server.
 * HTML forms + CSRF tokens + `SameSite` cookies give strong defaults with little code.
 * It still feels like an app on a phone: mobile-first CSS, bottom tab bar, a

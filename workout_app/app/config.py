@@ -10,7 +10,7 @@ from datetime import timedelta
 
 def _database_url() -> str:
     url = os.environ.get("DATABASE_URL", "sqlite:///workout.db")
-    # Render / Heroku hand out "postgres://", SQLAlchemy 2 wants an explicit driver.
+    # Hosts like Heroku hand out "postgres://", SQLAlchemy 2 wants an explicit driver.
     if url.startswith("postgres://"):
         url = "postgresql+psycopg://" + url[len("postgres://") :]
     elif url.startswith("postgresql://"):
@@ -31,6 +31,9 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
 
     # --- Session cookie hardening -------------------------------------------
+    # Firebase Hosting strips every cookie except one named "__session" before it forwards a
+    # request to Cloud Run, so the session cookie must use that name to survive.
+    SESSION_COOKIE_NAME = os.environ.get("SESSION_COOKIE_NAME", "__session")
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SECURE = _bool("SESSION_COOKIE_SECURE", True)
     # Lax (not Strict) so the cookie survives the redirect back from Google/Oura.
@@ -73,7 +76,11 @@ class Config:
     DEFAULT_TIMEZONE = os.environ.get("DEFAULT_TIMEZONE", "America/New_York")
     SHARE_LINK_DAYS = int(os.environ.get("SHARE_LINK_DAYS", "7"))
 
-    # Trust X-Forwarded-* from exactly this many proxies (Render = 1).
+    # The address people use, e.g. https://my-project.web.app. Behind Firebase Hosting the app
+    # itself only sees its *.run.app host, so links, OAuth redirects and share URLs use this.
+    PUBLIC_URL = os.environ.get("PUBLIC_URL")
+
+    # Trust X-Forwarded-* from exactly this many proxies (Firebase Hosting + Cloud Run = 2).
     PROXY_FIX_HOPS = int(os.environ.get("PROXY_FIX_HOPS", "1"))
 
 

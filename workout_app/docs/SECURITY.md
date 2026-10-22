@@ -71,7 +71,7 @@ HTTP headers on every response: `Content-Security-Policy`, `Strict-Transport-Sec
 
 - [ ] `APP_ENV=production`, 32+ char `SECRET_KEY`, `TOKEN_ENCRYPTION_KEY` set
 - [ ] Postgres `DATABASE_URL`; backups enabled
-- [ ] HTTPS only (Render does this); `PROXY_FIX_HOPS` matches the number of proxies
+- [ ] HTTPS only (Firebase Hosting does this); `PUBLIC_URL` set; `PROXY_FIX_HOPS` matches the number of proxies
 - [ ] Redis `RATELIMIT_STORAGE_URI` if more than one worker/instance
 - [ ] OAuth redirect URIs registered exactly (`https://…/auth/google/callback`, `https://…/integrations/oura/callback`)
 - [ ] Anthropic key has a monthly spend limit set in the Console; `AI_DAILY_CALLS` set (default 25)
