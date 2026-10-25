@@ -1,3 +1,0 @@
-# FitLog is a personal app; nothing here needs to be in search engines.
-User-agent: *
-Disallow: /
